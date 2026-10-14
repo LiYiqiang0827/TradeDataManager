@@ -361,8 +361,8 @@ def task_kpl_limit_performance():
 # ============================================================
 # 调度器主循环
 # ============================================================
-def run_daemon():
-    """多进程调度器主循环"""
+def run_daemon(*, skip_startup_update: bool = False):
+    """多进程调度器主循环。恢复服务时可跳过启动即全量更新。"""
     import schedule
 
     logger.info("=" * 60)
@@ -389,9 +389,12 @@ def run_daemon():
     schedule.every(NEWS_INTERVAL_MIN).minutes.do(task_news_update)
     schedule.every().day.at(STR_TIME_NEWS_LLM).do(task_news_llm_update)
 
-    # 启动时立即跑一次完整更新
-    logger.info("[启动] 立即执行一次完整更新...")
-    task_full_update()
+    # 常规部署启动时立即更新；迁移/维护后恢复调度时不额外触发全量抓取。
+    if skip_startup_update:
+        logger.info("[启动] 按配置跳过启动时的完整更新")
+    else:
+        logger.info("[启动] 立即执行一次完整更新...")
+        task_full_update()
 
     logger.info("进入调度循环...")
     while True:
@@ -405,6 +408,11 @@ def run_daemon():
 def main():
     parser = argparse.ArgumentParser(description="cn_data 多进程调度器")
     parser.add_argument("--daemon", action="store_true", help="常驻调度进程")
+    parser.add_argument(
+        "--skip-startup-update",
+        action="store_true",
+        help="daemon启动时只进入定时循环，不立即运行完整更新",
+    )
     parser.add_argument("--once", type=str, help="跑一次指定 service(如 service_news)")
     parser.add_argument("--full", action="store_true", help="立即跑完整更新(所有 service)")
     parser.add_argument("--status", action="store_true", help="查看 DB 状态")
@@ -415,7 +423,7 @@ def main():
         return
 
     if args.daemon:
-        run_daemon()
+        run_daemon(skip_startup_update=args.skip_startup_update)
         return
 
     if args.once:

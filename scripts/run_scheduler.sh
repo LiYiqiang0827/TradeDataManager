@@ -42,7 +42,7 @@ export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"
 case "$1" in
   offline)
     cd "$root/offlineDataManager/scripts"
-    exec "$python_bin" -m scheduler.scheduler_updateData --daemon
+    exec "$python_bin" -m scheduler.scheduler_updateData --daemon --skip-startup-update
     ;;
   online)
     cd "$root/onlineDataManager/scripts"

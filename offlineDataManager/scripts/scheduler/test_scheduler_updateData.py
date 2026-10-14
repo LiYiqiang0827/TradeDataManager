@@ -1,6 +1,8 @@
 from scheduler import scheduler_updateData as scheduler
 import pytest
 import subprocess
+import sys
+from types import SimpleNamespace
 
 
 def test_full_update_refreshes_trade_calendar_before_reading_target(monkeypatch):
@@ -102,3 +104,38 @@ def test_failed_derived_tables_do_not_block_independent_source_updates(monkeypat
     assert "service_kpl_list" in calls
     assert "service_daily_basic" in calls
     assert "service_index_daily" in calls
+
+
+@pytest.mark.parametrize("skip_startup_update, expected_calls", [(True, 0), (False, 1)])
+def test_daemon_startup_update_is_explicitly_skippable(
+    monkeypatch, skip_startup_update, expected_calls
+):
+    class StopLoop(Exception):
+        pass
+
+    class FakeJob:
+        day = None
+        minutes = None
+
+        def __init__(self):
+            self.day = self
+            self.minutes = self
+
+        def at(self, _time):
+            return self
+
+        def do(self, _function):
+            return self
+
+    fake_schedule = SimpleNamespace(
+        every=lambda *_args: FakeJob(),
+        run_pending=lambda: (_ for _ in ()).throw(StopLoop()),
+    )
+    monkeypatch.setitem(sys.modules, "schedule", fake_schedule)
+    calls = []
+    monkeypatch.setattr(scheduler, "task_full_update", lambda: calls.append("full"))
+
+    with pytest.raises(StopLoop):
+        scheduler.run_daemon(skip_startup_update=skip_startup_update)
+
+    assert len(calls) == expected_calls
