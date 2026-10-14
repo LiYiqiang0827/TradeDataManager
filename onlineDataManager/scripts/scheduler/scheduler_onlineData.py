@@ -532,6 +532,8 @@ def run_phase_services(
     # A same-name phase replacement must also wait for the previous Popen to exit.
     for svc in services:
         name = svc["name"]
+        if name == "service_writeredis_watchlist" and name in _DAEMON_PIDS:
+            continue  # startup补写已登记该进程，watchlist phase 不重复替换。
         if name in _DAEMON_PIDS and not kill_daemon(name, log):
             failed_stops.append(name)
 
@@ -545,7 +547,10 @@ def run_phase_services(
     log.info(f"[{pid_scope}] phase={phase} 启动 {len(services)} 个 service")
     max_rc = 0
     for svc in services:
-        rc = spawn_service(svc["name"], svc["args"], log=log)
+        name = svc["name"]
+        if name == "service_writeredis_watchlist" and name in _DAEMON_PIDS:
+            continue  # 已由启动补写或上一阶段启动，保持同一所有权实例。
+        rc = spawn_service(name, svc["args"], log=log)
         max_rc = max(max_rc, abs(rc))
         if rc != 0:
             log.warning(f"{svc['name']} 失败,但继续下一个")

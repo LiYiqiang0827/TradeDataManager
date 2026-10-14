@@ -173,7 +173,7 @@ class SchedulerLifecycleTests(unittest.TestCase):
         scheduler._register_daemon(name, stale)
         try:
             with mock.patch.object(scheduler, "kill_daemon", return_value=False) as stop, \
-                 mock.patch.object(scheduler, "spawn_service") as spawn:
+                 mock.patch.object(scheduler, "spawn_service", return_value=0) as spawn:
                 rc = scheduler.run_phase_services(
                     "morning_writer", {"morning_writer": [{"name": name, "args": []}]},
                     "writer", logging.getLogger(__name__)
@@ -206,9 +206,12 @@ class SchedulerLifecycleTests(unittest.TestCase):
             stopped.append(name)
             scheduler._DAEMON_PIDS.pop(name, None)
             return True
-        with mock.patch.object(scheduler, "kill_daemon", side_effect=stop):
+        with mock.patch.object(scheduler, "kill_daemon", side_effect=stop), \
+             mock.patch.object(scheduler, "spawn_service", return_value=0) as spawn:
             scheduler.run_phase_services("morning_writer", scheduler.WRITER_PHASE_SERVICES, "writer", logging.getLogger(__name__))
+            scheduler.run_phase_services("watchlist", scheduler.WRITER_PHASE_SERVICES, "writer", logging.getLogger(__name__))
             self.assertEqual(stopped, [])
+            self.assertFalse(any(call.args[0] == "service_writeredis_watchlist" for call in spawn.call_args_list))
             scheduler.kill_daemon("service_writeredis_watchlist", logging.getLogger(__name__))
         self.assertEqual(stopped, ["service_writeredis_watchlist"])
 
