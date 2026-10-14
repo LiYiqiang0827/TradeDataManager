@@ -1,0 +1,4 @@
+interface:
+  display_name: "A股新闻数据库工具"
+  short_description: "查询、更新新闻图谱与每日新闻文档"
+  default_prompt: "使用 $a-share-news-database 查询或维护 TradingAgent 的 Major News 新闻关系库，核对原始报道、评级、题材关系和 Obsidian 投影。"

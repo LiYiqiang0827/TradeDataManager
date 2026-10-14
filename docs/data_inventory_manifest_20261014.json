@@ -91,7 +91,7 @@
     },
     {
       "path": "offlineDataManager/data/db_fifteenMinute.db",
-      "type": "sqlite",
+      "type": "duckdb",
       "bytes": 2502963200
     },
     {
@@ -7245,9 +7245,10 @@
       "bytes": 215989
     },
     {
-      "path": "outputs/fifteen_min_core_reactivation_2026/db_theme_graph_2025.duckdb",
+      "path": "/Users/nickzhang/TradingDatabase/offline/research_snapshots/fifteen_min_core_reactivation_2026/db_theme_graph_2025.duckdb",
       "type": "duckdb",
-      "bytes": 26488832
+      "bytes": 26488832,
+      "compatibility_path": "/Users/nickzhang/TradingAgent/outputs/fifteen_min_core_reactivation_2026/db_theme_graph_2025.duckdb"
     },
     {
       "path": "outputs/ma_pullback_nearshore_case_20260916_v2/inputs/daily_factors.parquet",
@@ -13114,6 +13115,10 @@
     {
       "path": "outputs/rising_ma_reactivation/ma30_compact7_review/.ppt_build/node_modules",
       "target": "/Users/nickzhang/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules"
+    },
+    {
+      "path": "/Users/nickzhang/TradingAgent/outputs/fifteen_min_core_reactivation_2026/db_theme_graph_2025.duckdb",
+      "target": "../../../../TradingDatabase/offline/research_snapshots/fifteen_min_core_reactivation_2026/db_theme_graph_2025.duckdb"
     }
   ],
   "active_observation": {
@@ -13285,5 +13290,24 @@
     "logical_database_parquet_sidecar_redis_bytes": 41602060431,
     "sidecar_note": "4 SQLite WAL and 4 SHM files found. db_cn_basic.db-wal is 901,703,232 bytes. All four local SQLite files and sidecars are open by PID 19735; db_cn_basic additionally by PID 53008.",
     "duckdb_note": "Six DuckDB files, five in offlineDataManager/data and one under outputs. No DuckDB file handle was present in the local lsof sample; still recheck immediately before cutover and ensure no process/lock owner."
+  },
+  "migration_reconciliation": {
+    "updated_at_local": "2026-10-15",
+    "database_engine_detection": "File header inspected; db_fifteenMinute.db is DuckDB despite .db suffix.",
+    "research_snapshot_move": {
+      "source_compat_path": "/Users/nickzhang/TradingAgent/outputs/fifteen_min_core_reactivation_2026/db_theme_graph_2025.duckdb",
+      "canonical_path": "/Users/nickzhang/TradingDatabase/offline/research_snapshots/fifteen_min_core_reactivation_2026/db_theme_graph_2025.duckdb",
+      "bytes": 26488832,
+      "sha256": "8b3886811aed0cba0b29ce144051decb16abb31fab310016ec6acdae17585c85",
+      "move": "same-volume rename; hash identical before/after"
+    }
+  },
+  "research_parquet_reconciliation": {
+    "root": "/Users/nickzhang/TradingAgent/MrLi/outputs",
+    "file_count": 1440,
+    "total_bytes": 1521337881,
+    "disposition": "preserved as frozen research experiment inputs/results; not moved into the service database tree",
+    "provider_scan": "not scanned by public get_* providers; providers resolve only TradingDatabase/offline and online",
+    "sha256_manifest": "/Users/nickzhang/TradingDataManager/docs/research_parquet_manifest_20261015.json"
   }
 }

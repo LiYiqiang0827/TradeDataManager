@@ -1,9 +1,14 @@
 # Local runtime and database contents never belong in this code repository.
 .DS_Store
 .env
+.env.*
+!.env.example
 .venv/
 .runtime/
+/outputs/
+/reports/
 **/data/
+**/data
 **/logs/
 **/__pycache__/
 **/.pytest_cache/
@@ -15,6 +20,18 @@
 *.parquet
 *.db-wal
 *.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite-journal
+*.db-journal
+*.duckdb.wal
+*.duckdb.tmp
+*.jpg
+*.jpeg
 
-# Host-specific connection settings may contain credentials. Keep local copies out of Git.
+# Keep machine-specific provider config private; distribute templates only.
 /coreClient/*_config.py
+/coreClient/privateconfig.py
+**/.auth.json

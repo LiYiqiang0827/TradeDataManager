@@ -21,15 +21,17 @@ from typing import Any
 import pandas as pd
 
 
-ROOT = Path(__file__).resolve().parents[3]
-MODEL_RUNNER_DIR = ROOT / "policyStudy" / "policy" / "题材涨停研究" / "theme_graph"
+from coreClient._paths import manager_root, research_root
+
+ROOT = manager_root(__file__, 3)
+MODEL_RUNNER_DIR = ROOT / "theme_graph"
 if str(MODEL_RUNNER_DIR) not in sys.path:
     sys.path.insert(0, str(MODEL_RUNNER_DIR))
 
 from model_runner import call_qwen, extract_json  # noqa: E402
 
 
-DEFAULT_INPUT_ROOT = ROOT / "outputs" / "major_news_analysis"
+DEFAULT_INPUT_ROOT = research_root() / "outputs" / "major_news_analysis"
 CATEGORIES = {
     "policy", "macro", "industry", "company", "commodity", "technology",
     "geopolitics", "overseas_market", "data_release", "other",

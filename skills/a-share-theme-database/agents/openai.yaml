@@ -1,0 +1,4 @@
+interface:
+  display_name: "题材研究数据库工具"
+  short_description: "查询题材库并生成每日复盘与周期图"
+  default_prompt: "使用 $a-share-theme-database 查询或维护题材研究数据库，先检查数据时点和现有分析，再执行增量更新、历史查询、每日题材复盘、周期可视化或Obsidian投影。"

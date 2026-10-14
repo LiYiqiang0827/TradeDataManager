@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import fcntl
 import json
 from pathlib import Path
-from coreClient._paths import manager_root, offline_data_dir
+from coreClient._paths import manager_root, offline_data_dir, research_root
 import subprocess
 import sys
 import time
@@ -21,7 +21,8 @@ from loguru import logger
 
 PROJECT_ROOT = manager_root(__file__, 3)
 OFFLINE_DB_DIR = offline_data_dir()
-REPO_ROOT = PROJECT_ROOT.parent
+REPO_ROOT = PROJECT_ROOT
+ARTIFACT_ROOT = research_root() / "outputs" / "major_news_analysis"
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from core.news_event_store import NewsEventStore  # noqa: E402
@@ -52,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     python = sys.executable
-    output_root = REPO_ROOT / "outputs" / "major_news_analysis"
+    output_root = ARTIFACT_ROOT
     database = OFFLINE_DB_DIR / "db_major_news_events.duckdb"
     cluster = [
         python, str(PROJECT_ROOT / "scripts/experiments/news_event_cluster_pilot.py"),

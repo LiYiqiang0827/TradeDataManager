@@ -15,9 +15,10 @@ from typing import Any
 
 import pandas as pd
 
-from coreClient._paths import manager_root, offline_data_dir
+from coreClient._paths import manager_root, offline_data_dir, research_root
 ROOT = manager_root(__file__, 3)
 OFFLINE_DB_DIR = offline_data_dir()
+ARTIFACT_ROOT = research_root() / "outputs" / "major_news_analysis"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "offlineDataManager" / "scripts"))
 
@@ -166,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
             from coreClient.tushare_client import TushareClient
             client = TushareClient()
         prefix = "source_full_refresh" if args.refresh_existing else "source_gap_backfill"
-        status_path = args.status_file or ROOT / "outputs" / "major_news_analysis" / f"{prefix}_{start:%Y%m%d}_{end:%Y%m%d}.json"
+        status_path = args.status_file or ARTIFACT_ROOT / f"{prefix}_{start:%Y%m%d}_{end:%Y%m%d}.json"
         state: dict[str, Any] = {}
         if status_path.exists():
             state = json.loads(status_path.read_text(encoding="utf-8"))

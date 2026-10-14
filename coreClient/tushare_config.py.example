@@ -1,0 +1,10 @@
+"""Safe Tushare defaults; credentials come only from the environment."""
+import os
+import warnings
+
+TUSHARE_TOKEN = os.environ.get("TRADING_AGENT_TUSHARE_TOKEN", "")
+if not TUSHARE_TOKEN:
+    warnings.warn("Set TRADING_AGENT_TUSHARE_TOKEN before online Tushare calls.")
+TUSHARE_RATE_LIMIT_PER_MIN = 200
+TUSHARE_RETRY_MAX = 3
+TUSHARE_RETRY_SLEEP = 2

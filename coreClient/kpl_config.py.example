@@ -1,0 +1,28 @@
+"""Safe KPL defaults; auth is read from ~/.kpl-api/.auth.json."""
+import os
+
+KPL_AUTH_TOKEN = ""
+KPL_USER_ID = ""
+_KPL_AUTH_FILE = os.path.expanduser("~/.kpl-api/.auth.json")
+
+
+def get_kpl_auth() -> tuple[str, str]:
+    import json
+    if os.path.exists(_KPL_AUTH_FILE):
+        try:
+            with open(_KPL_AUTH_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+            return str(data.get("token", "")), str(data.get("user_id", ""))
+        except Exception:
+            pass
+    return KPL_AUTH_TOKEN, KPL_USER_ID
+
+
+KPL_HOST_APPHWHQ = "apphwhq.longhuvip.com"
+KPL_HOST_APPHIS = "apphis.longhuvip.com"
+KPL_HOST_APPLHB = "applhb.longhuvip.com"
+KPL_HOST_APPPHQ = "apphq.longhuvip.com"
+KPL_BASE_URL = "https://{host}/w1/api/index.php"
+KPL_RATE_LIMIT_PER_MIN = 30
+KPL_RETRY_MAX = 3
+KPL_RETRY_SLEEP = 2

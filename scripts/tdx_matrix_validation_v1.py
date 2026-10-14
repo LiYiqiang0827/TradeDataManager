@@ -1,0 +1,1 @@
+../tools/data_checks/tdx_matrix_validation_v1.py

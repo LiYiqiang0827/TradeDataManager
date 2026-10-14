@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 
-from coreClient._paths import manager_root, offline_data_dir
+from coreClient._paths import manager_root, offline_data_dir, research_root
 ROOT = manager_root(__file__, 3)
 OFFLINE_DB_DIR = offline_data_dir()
 SCRIPTS = ROOT / "offlineDataManager" / "scripts"
@@ -22,7 +22,7 @@ from config.settings import DB_PATH_NEWS, NEWS_EVENT_DB_PATH  # noqa: E402
 from core.major_news_graph_store import MajorNewsGraphStore, _day  # noqa: E402
 
 
-ARTIFACT_ROOT = ROOT / "outputs" / "major_news_analysis"
+ARTIFACT_ROOT = research_root() / "outputs" / "major_news_analysis"
 
 
 def _print(value) -> None:

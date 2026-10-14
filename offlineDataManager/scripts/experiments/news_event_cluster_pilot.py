@@ -25,11 +25,11 @@ import pandas as pd
 from sklearn.neighbors import NearestNeighbors
 
 
-from coreClient._paths import manager_root, offline_data_dir
+from coreClient._paths import manager_root, offline_data_dir, research_root
 ROOT = manager_root(__file__, 3)
 OFFLINE_DB_DIR = offline_data_dir()
 DEFAULT_DB = OFFLINE_DB_DIR / "db_major_news_events.duckdb"
-DEFAULT_OUTPUT_ROOT = ROOT / "outputs" / "major_news_analysis"
+DEFAULT_OUTPUT_ROOT = research_root() / "outputs" / "major_news_analysis"
 
 PUNCT_RE = re.compile(r"[^0-9a-zA-Z\u4e00-\u9fff%]+")
 NUMBER_RE = re.compile(

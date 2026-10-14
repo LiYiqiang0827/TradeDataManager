@@ -13,10 +13,10 @@ from typing import Any
 import duckdb
 
 
-from coreClient._paths import manager_root, offline_data_dir
+from coreClient._paths import manager_root, offline_data_dir, research_root
 ROOT = manager_root(__file__, 3)
 OFFLINE_DB_DIR = offline_data_dir()
-DEFAULT_INPUT_ROOT = ROOT / "outputs" / "major_news_analysis"
+DEFAULT_INPUT_ROOT = research_root() / "outputs" / "major_news_analysis"
 DEFAULT_DB = OFFLINE_DB_DIR / "db_major_news_events.duckdb"
 DEFAULT_VAULT = Path.home() / "Documents" / "每日新闻分析"
 

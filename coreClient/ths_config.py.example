@@ -1,0 +1,8 @@
+"""Safe THS CLI defaults; configure the local terminal command if needed."""
+THS_CLI_CMD = "ths"
+THS_CLI_DEFAULT_TIMEOUT = 60
+THS_CLI_RETRY_MAX = 3
+THS_CLI_RETRY_BASE_SLEEP = 1
+THS_CHUNK_SIZE_DEFAULT = 500
+THS_POOL_SIZE_DEFAULT = 4
+THS_DEFAULT_TS_SUFFIXES = (".SH", ".SZ", ".BJ")

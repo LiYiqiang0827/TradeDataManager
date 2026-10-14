@@ -1,0 +1,15 @@
+"""Safe local Redis defaults; override this private module for another host."""
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 6379
+DEFAULT_DB = 0
+META_LAST_ID_PREFIX = "meta:last_id:"
+META_KEY_LAST_ID = "last_id"
+META_KEY_COUNT = "count"
+META_KEY_TRADE_DATE = "trade_date"
+DEFAULT_DROP_KEYS = []
+DEFAULT_STREAM_TTL = 60 * 60 * 24
+DEFAULT_WINDOW_TTL = 60 * 60 * 24
+DEFAULT_LIST_MAX_SIZE = 10000
+REDIS_RETRY_MAX = 3
+REDIS_RETRY_SLEEP = 0.5
+REDIS_PING_TIMEOUT = 2
