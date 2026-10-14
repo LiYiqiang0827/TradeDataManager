@@ -1,0 +1,450 @@
+{
+  "manifest_version": 1,
+  "generated_from": "coreClient/data_provider.py AST, 49 top-level get_* functions",
+  "api_count": 49,
+  "apis": [
+    {
+      "name": "get_fifteenMin",
+      "group": "intraday_15m",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_oneMin",
+      "group": "intraday_1m",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_minute",
+      "group": "policy_minute",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_minute_index",
+      "group": "policy_minute_index",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_ticks",
+      "group": "policy_ticks",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_day",
+      "group": "daily_kline",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_week",
+      "group": "weekly_kline",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_month",
+      "group": "monthly_kline",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_basic",
+      "group": "basic",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_adj_factor",
+      "group": "adjustment_factor",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_stk_limit",
+      "group": "daily_limits",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_daily_basic",
+      "group": "daily_basic",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_moneyflow",
+      "group": "moneyflow",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_index_basic",
+      "group": "index",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_index_daily",
+      "group": "index",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_tradecal",
+      "group": "calendar",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_kpl_list",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_kpl_concept_cons",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_kpl_limit_performance",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_news",
+      "group": "news",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_suspend",
+      "group": "suspension",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_top_list",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_top_inst",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_block_trade",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_ggt_daily",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_hsgt_top10",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_limit_list",
+      "group": "kpl",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_margin",
+      "group": "margin",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_margin_detail",
+      "group": "margin",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_cyq_perf",
+      "group": "daily_derived",
+      "mode": "database_only"
+    },
+    {
+      "name": "get_major_news",
+      "group": "news",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_cctv_news",
+      "group": "news",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_news_events",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_news_event_daily_stats",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_news_insights",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_news_llm_daily_stats",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_major_news_analysis",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_major_news_theme_edges",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_major_news_daily_summary",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_major_news_event_graph",
+      "group": "news_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_theme_profile",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_theme_members",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_theme_daily",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_market_theme_review",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_market_theme_review_series",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_theme_cycle_data",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_stock_theme_history",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_theme_analyses",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    },
+    {
+      "name": "get_theme_taxonomy",
+      "group": "theme_graph",
+      "mode": "offline_local_or_duckdb"
+    }
+  ],
+  "query_cases": [
+    {
+      "id": "calendar_recent",
+      "api": "get_tradecal",
+      "kwargs": {
+        "start_date": "20261012",
+        "end_date": "20261014",
+        "market": "SSE"
+      }
+    },
+    {
+      "id": "day_raw_recent",
+      "api": "get_day",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20261012",
+        "end_date": "20261014",
+        "qfq": false,
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "day_qfq_recent",
+      "api": "get_day",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20261012",
+        "end_date": "20261014",
+        "qfq": true,
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "day_daily_basic",
+      "api": "get_daily_basic",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20261012",
+        "end_date": "20261014",
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "day_adj_factor",
+      "api": "get_adj_factor",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20261012",
+        "end_date": "20261014",
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "week_qfq",
+      "api": "get_week",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20250101",
+        "end_date": "20261014",
+        "qfq": true,
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "week_origin",
+      "api": "get_week",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20250101",
+        "end_date": "20261014",
+        "qfq": false,
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "month_qfq",
+      "api": "get_month",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20250101",
+        "end_date": "20261014",
+        "qfq": true,
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "month_origin",
+      "api": "get_month",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "start_date": "20250101",
+        "end_date": "20261014",
+        "qfq": false,
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "one_min_three_codes",
+      "api": "get_oneMin",
+      "kwargs": {
+        "ts_codes": [
+          "000001.SZ",
+          "600000.SH",
+          "300750.SZ"
+        ],
+        "trade_date": "20261014"
+      }
+    },
+    {
+      "id": "fifteen_min_three_codes",
+      "api": "get_fifteenMin",
+      "kwargs": {
+        "ts_codes": [
+          "000001.SZ",
+          "600000.SH",
+          "300750.SZ"
+        ],
+        "trade_date": "20261014"
+      }
+    },
+    {
+      "id": "policy_minute",
+      "api": "get_minute",
+      "kwargs": {
+        "ts_code": "000001.SZ",
+        "trade_date": "20261014",
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "kpl_limit_list",
+      "api": "get_kpl_list",
+      "kwargs": {
+        "trade_date": "20261014",
+        "tags": [
+          "涨停",
+          "炸板"
+        ],
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "kpl_concept_members",
+      "api": "get_kpl_concept_cons",
+      "kwargs": {
+        "trade_date": "20261014",
+        "ts_code": "000001.SZ",
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "kpl_limit_performance",
+      "api": "get_kpl_limit_performance",
+      "kwargs": {
+        "trade_date": "20261014",
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "news_recent",
+      "api": "get_news",
+      "kwargs": {
+        "start_datetime": "2026-10-13 00:00:00",
+        "end_datetime": "2026-10-14 23:59:59",
+        "limit": 200,
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "major_news_recent",
+      "api": "get_major_news",
+      "kwargs": {
+        "start_date": "20261013",
+        "end_date": "20261014",
+        "source": "database_only"
+      }
+    },
+    {
+      "id": "cctv_news_recent",
+      "api": "get_cctv_news",
+      "kwargs": {
+        "start_date": "20261013",
+        "end_date": "20261014",
+        "source": "database_only"
+      }
+    }
+  ],
+  "graph_api_cases": "Before migration, choose existing stable entity/theme IDs from a read-only source inventory; then record explicit kwargs for all nine theme_graph and eight news_graph APIs. Avoid synthetic IDs that return empty frames.",
+  "read_mode": "source=database_only wherever supported; get_oneMin/get_fifteenMin are local-only and use explicit data_root paths. No online fallback or network calls.",
+  "fingerprint_contract": {
+    "frame_schema": "record returned column names, order, pandas dtype, index type/name/values",
+    "row_hashes": "SHA-256 over UTF-8 canonical JSON rows; preserve exact API order in primary hash; compute a second hash sorted by stable primary key to diagnose order-only changes",
+    "nulls": "normalize None/NaN/NaT to JSON null",
+    "numeric": "serialize integers exactly; floats with 17 significant decimal digits; do not round",
+    "timestamps": "preserve exact ISO/string value and timezone offset",
+    "include": "all returned columns including snap_ts; exclude only DataFrame index after recording its metadata",
+    "acceptance": "source and target row count, schema, ordered hash, and stable-key sorted hash must match; any approved normalization must be explicit per field"
+  }
+}

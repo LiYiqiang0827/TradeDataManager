@@ -1,0 +1,125 @@
+{
+  "db": "/Users/nickzhang/TradingDatabase/offline/db_cn_basic.db",
+  "read_mode": "immutable; no WAL/SHM/open writer found before scan",
+  "table_meta": {
+    "tbl_cn_week": {
+      "rows": 2511637,
+      "codes": 5832,
+      "min_date": "20150105",
+      "max_date": "20261014",
+      "max_snap_ts": "2026-10-14T22:20:39"
+    },
+    "tbl_cn_week_origin": {
+      "rows": 2511637,
+      "codes": 5832,
+      "min_date": "20150105",
+      "max_date": "20261014",
+      "max_snap_ts": "2026-10-14T22:20:38"
+    },
+    "tbl_cn_month": {
+      "rows": 598960,
+      "codes": 5832,
+      "min_date": "20150105",
+      "max_date": "20261014",
+      "max_snap_ts": "2026-10-14T20:29:37"
+    },
+    "tbl_cn_month_origin": {
+      "rows": 598960,
+      "codes": 5832,
+      "min_date": "20150105",
+      "max_date": "20261014",
+      "max_snap_ts": "2026-10-14T20:29:37"
+    }
+  },
+  "key_set_diffs": {
+    "week": {
+      "left_only": 0,
+      "right_only": 0,
+      "left_sample": [],
+      "right_sample": []
+    },
+    "month": {
+      "left_only": 0,
+      "right_only": 0,
+      "left_sample": [],
+      "right_sample": []
+    }
+  },
+  "daily_latest": {
+    "codes": 5832,
+    "min_latest_date": "20150429",
+    "max_latest_date": "20261014"
+  },
+  "latest_period_vs_daily": {
+    "tbl_cn_week": {
+      "daily_codes": 5832,
+      "period_codes": 5832,
+      "missing_period_codes": [],
+      "missing_period_count": 0,
+      "period_only_codes": [],
+      "period_only_count": 0,
+      "latest_date_mismatch_count": 0,
+      "latest_date_mismatch_sample": []
+    },
+    "tbl_cn_week_origin": {
+      "daily_codes": 5832,
+      "period_codes": 5832,
+      "missing_period_codes": [],
+      "missing_period_count": 0,
+      "period_only_codes": [],
+      "period_only_count": 0,
+      "latest_date_mismatch_count": 0,
+      "latest_date_mismatch_sample": []
+    },
+    "tbl_cn_month": {
+      "daily_codes": 5832,
+      "period_codes": 5832,
+      "missing_period_codes": [],
+      "missing_period_count": 0,
+      "period_only_codes": [],
+      "period_only_count": 0,
+      "latest_date_mismatch_count": 0,
+      "latest_date_mismatch_sample": []
+    },
+    "tbl_cn_month_origin": {
+      "daily_codes": 5832,
+      "period_codes": 5832,
+      "missing_period_codes": [],
+      "missing_period_count": 0,
+      "period_only_codes": [],
+      "period_only_count": 0,
+      "latest_date_mismatch_count": 0,
+      "latest_date_mismatch_sample": []
+    }
+  },
+  "current_qfq_factor": {
+    "tbl_cn_month": {
+      "rows_checked": 598960,
+      "missing_daily_row": 0,
+      "missing_factor_row_defaulted_to_one": 0,
+      "mismatch_count": 0,
+      "max_abs_diff": 2.2737367544323206e-13,
+      "max_relative_diff": 3.6391538989629437e-16,
+      "mismatch_examples": [],
+      "meaning": "all historical monthly qfq closes checked against current daily close at period end and current latest non-null factor"
+    },
+    "tbl_cn_week_latest": {
+      "rows_checked": 5832,
+      "missing_daily_row": 0,
+      "missing_factor_row_defaulted_to_one": 0,
+      "mismatch_count": 0,
+      "max_abs_diff": 2.842170943040401e-14,
+      "max_relative_diff": 2.1598232970133993e-16,
+      "mismatch_examples": [],
+      "meaning": "latest weekly qfq closes checked for every code against current daily close/factors"
+    },
+    "latest_factor_snapshot": {
+      "codes": 5832,
+      "min_factor_snap_ts": "2026-09-10T13:53:56",
+      "max_factor_snap_ts": "2026-10-14T18:00:40",
+      "min_factor_date": "20150520",
+      "max_factor_date": "20261014"
+    }
+  },
+  "elapsed_seconds": 151.867
+}

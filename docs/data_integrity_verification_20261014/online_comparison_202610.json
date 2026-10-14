@@ -1,0 +1,18 @@
+{
+  "source_db": "/Users/nickzhang/TradingAgent/onlineDataManager/data/online_data_202610.db",
+  "target_db": "/Users/nickzhang/TradingDatabase/online/online_data_202610.db",
+  "source_tables": 91,
+  "target_tables": 91,
+  "source_days": [
+    "20261012",
+    "20261013",
+    "20261014"
+  ],
+  "target_days": [
+    "20261012",
+    "20261013",
+    "20261014"
+  ],
+  "status": "pass",
+  "differences": []
+}

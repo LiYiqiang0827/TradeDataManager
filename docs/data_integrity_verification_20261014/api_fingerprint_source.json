@@ -1,0 +1,867 @@
+{
+  "manifest_version": 1,
+  "api_count": 49,
+  "case_count": 18,
+  "label": "frozen-source",
+  "generated_at_epoch": 1791991420.8695989,
+  "results": [
+    {
+      "id": "calendar_recent",
+      "api": "get_tradecal",
+      "status": "ok",
+      "elapsed_seconds": 19.137,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          3,
+          5
+        ],
+        "columns": [
+          "cal_date",
+          "exchange",
+          "is_open",
+          "pretrade_date",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "int64",
+          "object",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 3,
+        "sha256_ordered_rows": "3416e643a9fb489122a6769857f16c4f74b1f8d7a2342e2d50f265ac6d57de38"
+      }
+    },
+    {
+      "id": "day_raw_recent",
+      "api": "get_day",
+      "status": "ok",
+      "elapsed_seconds": 0.025,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          3,
+          11
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "pre_close",
+          "change",
+          "pct_chg",
+          "vol",
+          "amount"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 3,
+        "sha256_ordered_rows": "5e9ac1c2881002104fd3d006f8f42df03b21af44ee47986dc1b2405044823a80"
+      }
+    },
+    {
+      "id": "day_qfq_recent",
+      "api": "get_day",
+      "status": "ok",
+      "elapsed_seconds": 0.368,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          3,
+          11
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "pre_close",
+          "change",
+          "pct_chg",
+          "vol",
+          "amount"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 3,
+        "sha256_ordered_rows": "5e9ac1c2881002104fd3d006f8f42df03b21af44ee47986dc1b2405044823a80"
+      }
+    },
+    {
+      "id": "day_daily_basic",
+      "api": "get_daily_basic",
+      "status": "ok",
+      "elapsed_seconds": 0.628,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          3,
+          19
+        ],
+        "columns": [
+          "trade_date",
+          "ts_code",
+          "close",
+          "turnover_rate",
+          "turnover_rate_f",
+          "volume_ratio",
+          "pe",
+          "pe_ttm",
+          "pb",
+          "ps",
+          "ps_ttm",
+          "dv_ratio",
+          "dv_ttm",
+          "total_share",
+          "float_share",
+          "free_share",
+          "total_mv",
+          "circ_mv",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 3,
+        "sha256_ordered_rows": "2f92d83f67252f2f527e98ae3867bc5684afae5a23e0994d80618a932badbbcd"
+      }
+    },
+    {
+      "id": "day_adj_factor",
+      "api": "get_adj_factor",
+      "status": "ok",
+      "elapsed_seconds": 0.002,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          3,
+          4
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "adj_factor",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 3,
+        "sha256_ordered_rows": "7c8598f2f34114cc47b323e567fc1b5067f8064e3f1c5e2401be62669841e46f"
+      }
+    },
+    {
+      "id": "week_qfq",
+      "api": "get_week",
+      "status": "ok",
+      "elapsed_seconds": 0.002,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          93,
+          11
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "pre_close",
+          "change",
+          "pct_chg",
+          "vol",
+          "amount"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 93,
+        "sha256_ordered_rows": "d2f35c5b26ea60344e3b9c42a88a2644c9fdce64dab7fbb137b53de3574656ac"
+      }
+    },
+    {
+      "id": "week_origin",
+      "api": "get_week",
+      "status": "ok",
+      "elapsed_seconds": 0.002,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          93,
+          11
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "pre_close",
+          "change",
+          "pct_chg",
+          "vol",
+          "amount"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 93,
+        "sha256_ordered_rows": "2b4b9bb46247cffb7a52a2f719eef7e106ec9e6d3b22ef7e773c07b7851e431b"
+      }
+    },
+    {
+      "id": "month_qfq",
+      "api": "get_month",
+      "status": "ok",
+      "elapsed_seconds": 0.002,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          22,
+          11
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "pre_close",
+          "change",
+          "pct_chg",
+          "vol",
+          "amount"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 22,
+        "sha256_ordered_rows": "f9da3c52459fa9b2957a9708df44d143108b10f3c7bd291b6821b62130556f47"
+      }
+    },
+    {
+      "id": "month_origin",
+      "api": "get_month",
+      "status": "ok",
+      "elapsed_seconds": 0.002,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          22,
+          11
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "pre_close",
+          "change",
+          "pct_chg",
+          "vol",
+          "amount"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 22,
+        "sha256_ordered_rows": "984a06bab159e42f88ca39779ff21fdcc0842179601a397889d5d3e456773208"
+      }
+    },
+    {
+      "id": "one_min_three_codes",
+      "api": "get_oneMin",
+      "status": "ok",
+      "elapsed_seconds": 0.455,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          720,
+          12
+        ],
+        "columns": [
+          "ts_code",
+          "name",
+          "trade_date",
+          "datetime",
+          "time_idx",
+          "open",
+          "high",
+          "low",
+          "close",
+          "vol",
+          "amount",
+          "adj_factor"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "int32",
+          "datetime64[us]",
+          "int16",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "int64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 720,
+        "sha256_ordered_rows": "68f759ec4f3757abe6673b848215be3352de7952155168186a3e75ec15c7b6e2"
+      }
+    },
+    {
+      "id": "fifteen_min_three_codes",
+      "api": "get_fifteenMin",
+      "status": "ok",
+      "elapsed_seconds": 0.155,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          48,
+          12
+        ],
+        "columns": [
+          "ts_code",
+          "name",
+          "trade_date",
+          "datetime",
+          "time_idx",
+          "open",
+          "high",
+          "low",
+          "close",
+          "vol",
+          "amount",
+          "adj_factor"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "int32",
+          "datetime64[us]",
+          "int16",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 48,
+        "sha256_ordered_rows": "bde130059976b96a8e0bc3a1404f6141e54127833adb5668d10aeba7422a26c4"
+      }
+    },
+    {
+      "id": "policy_minute",
+      "api": "get_minute",
+      "status": "ok",
+      "elapsed_seconds": 0.018,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          0,
+          7
+        ],
+        "columns": [
+          "ts_code",
+          "trade_date",
+          "datetime",
+          "time_idx",
+          "price",
+          "vol",
+          "created_at"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 0,
+        "sha256_ordered_rows": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "id": "kpl_limit_list",
+      "api": "get_kpl_list",
+      "status": "ok",
+      "elapsed_seconds": 0.023,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          0,
+          25
+        ],
+        "columns": [
+          "ts_code",
+          "name",
+          "trade_date",
+          "lu_time",
+          "ld_time",
+          "open_time",
+          "last_time",
+          "lu_desc",
+          "tag",
+          "theme",
+          "net_change",
+          "bid_amount",
+          "status",
+          "bid_change",
+          "bid_turnover",
+          "lu_bid_vol",
+          "pct_chg",
+          "bid_pct_chg",
+          "rt_pct_chg",
+          "limit_order",
+          "amount",
+          "turnover_rate",
+          "free_float",
+          "lu_limit_order",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 0,
+        "sha256_ordered_rows": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      }
+    },
+    {
+      "id": "kpl_concept_members",
+      "api": "get_kpl_concept_cons",
+      "status": "ok",
+      "elapsed_seconds": 0.02,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          1,
+          8
+        ],
+        "columns": [
+          "ts_code",
+          "name",
+          "con_name",
+          "con_code",
+          "trade_date",
+          "desc",
+          "hot_num",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "int64",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 1,
+        "sha256_ordered_rows": "b98e3163ed5c9b7686c277ca8fe3a91eb48fc417aa1fe3fde4ee2f6310ec1ff3"
+      }
+    },
+    {
+      "id": "kpl_limit_performance",
+      "api": "get_kpl_limit_performance",
+      "status": "ok",
+      "elapsed_seconds": 0.006,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          36,
+          24
+        ],
+        "columns": [
+          "trade_date",
+          "ts_code",
+          "name",
+          "board_type",
+          "board_count",
+          "lu_time",
+          "theme",
+          "limit_reason",
+          "is_break",
+          "amplitude",
+          "turnover_rate",
+          "limit_order",
+          "lu_limit_order",
+          "net_change",
+          "main_in",
+          "main_out",
+          "amount",
+          "free_float",
+          "close_price",
+          "pct_chg",
+          "board_period",
+          "theme_id",
+          "sector_id",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "object",
+          "int64",
+          "int64",
+          "object",
+          "object",
+          "object",
+          "int64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "float64",
+          "object",
+          "object",
+          "int64",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 36,
+        "sha256_ordered_rows": "4bdbaf2423bb8e0f2e8a31514aae8734efe620534699087bb21ec49d0a47fff7"
+      }
+    },
+    {
+      "id": "news_recent",
+      "api": "get_news",
+      "status": "ok",
+      "elapsed_seconds": 0.006,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          200,
+          8
+        ],
+        "columns": [
+          "datetime",
+          "src",
+          "title",
+          "content",
+          "channels",
+          "score",
+          "md5",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 200,
+        "sha256_ordered_rows": "e2745928c0dbd9aea8e3a55017aafb40667020a3045313858b6f1bc200be755e"
+      }
+    },
+    {
+      "id": "major_news_recent",
+      "api": "get_major_news",
+      "status": "ok",
+      "elapsed_seconds": 0.021,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          1620,
+          8
+        ],
+        "columns": [
+          "datetime",
+          "src",
+          "title",
+          "content",
+          "channels",
+          "score",
+          "md5",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 1620,
+        "sha256_ordered_rows": "9758eb0e5506ff9de33ed5907386008f1c31a4d3dbd84aa0813c136d1221bc98"
+      }
+    },
+    {
+      "id": "cctv_news_recent",
+      "api": "get_cctv_news",
+      "status": "ok",
+      "elapsed_seconds": 0.004,
+      "fingerprint": {
+        "type": "DataFrame",
+        "shape": [
+          25,
+          6
+        ],
+        "columns": [
+          "datetime",
+          "title",
+          "content",
+          "src",
+          "md5",
+          "snap_ts"
+        ],
+        "dtypes": [
+          "object",
+          "object",
+          "object",
+          "object",
+          "object",
+          "object"
+        ],
+        "index_name": [
+          null
+        ],
+        "index_dtype": [
+          "int64"
+        ],
+        "row_count": 25,
+        "sha256_ordered_rows": "87979a51e6eb4bf7b76b375c7148c01c0a93e759ce7dd5325ff7c02db53d9eb6"
+      }
+    }
+  ]
+}

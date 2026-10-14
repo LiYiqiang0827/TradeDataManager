@@ -1,0 +1,528 @@
+{
+  "audit_date": "2026-10-14",
+  "timezone": "Asia/Shanghai",
+  "scope": "read-only pre-migration source baseline; no production writes, updates, rebuilds, network market fetches, or full database copies",
+  "source_roots": {
+    "real_repo": "/Users/nickzhang/TradingAgent",
+    "worktree": "/Users/nickzhang/.codex/worktrees/e43d/TradingAgent",
+    "offline_data": "/Users/nickzhang/TradingAgent/offlineDataManager/data",
+    "online_data": "/Users/nickzhang/TradingAgent/onlineDataManager/data"
+  },
+  "tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.:offlineDataManager/scripts /Users/nickzhang/TradingAgent/.venv/bin/python -m pytest -p no:cacheprovider offlineDataManager/scripts/core/test_tdx_one_min_store.py offlineDataManager/scripts/core/test_tdx_fifteen_min_store.py offlineDataManager/scripts/core/test_week_month_origin.py -q",
+    "result": "41 passed in 11.62s",
+    "isolation": "in-memory and pytest tmp_path; no production or network writes"
+  },
+  "coverage": {
+    "sse_calendar": {
+      "days": 2128,
+      "range": [
+        "20180102",
+        "20261014"
+      ],
+      "source_calendar_range": [
+        "20180101",
+        "20261014"
+      ],
+      "pre_2018_validation": "unknown"
+    },
+    "daily_tables": {
+      "tbl_cn_day": {
+        "grouped_trade_dates": 2128,
+        "missing_sse_open_days": 0,
+        "non_calendar_days": 0,
+        "neighbor_contract_flags": 0,
+        "full_table_range": [
+          "20150105",
+          "20261014"
+        ],
+        "full_rows": 11820330
+      },
+      "tbl_cn_daily_basic": {
+        "grouped_trade_dates": 2128,
+        "missing_sse_open_days": 0,
+        "non_calendar_days": 0,
+        "neighbor_contract_flags": 0,
+        "full_table_range": [
+          "20150105",
+          "20261014"
+        ],
+        "full_rows": 11729968
+      },
+      "tbl_cn_adj_factor": {
+        "grouped_trade_dates": 2130,
+        "missing_sse_open_days": 0,
+        "extra_non_open_dates": 2,
+        "neighbor_contract_flags": 0,
+        "full_table_range": [
+          "20150105",
+          "20261014"
+        ],
+        "full_rows": 12333582,
+        "extra_closed_dates": {
+          "20210920": {
+            "codes": [
+              "689009.SH"
+            ],
+            "factor": 1.0
+          },
+          "20210921": {
+            "codes": [
+              "689009.SH"
+            ],
+            "factor": 1.0
+          }
+        },
+        "interpretation": "source updater loops natural days; redundant constant-factor rows are preserved, not classified as migration defect"
+      }
+    },
+    "one_minute_parquet": {
+      "partition_files": 428,
+      "date_range": [
+        "20250102",
+        "20261014"
+      ],
+      "footer_errors": 0,
+      "metadata_rows": 560819760,
+      "row_groups": 4472,
+      "sse_open_day_partition_missing": [
+        "20260922"
+      ],
+      "schema_variants": {
+        "timestamp_us": {
+          "files": 321,
+          "range": [
+            "20250102",
+            "20260506"
+          ]
+        },
+        "timestamp_ns": {
+          "files": 107,
+          "range": [
+            "20260507",
+            "20261014"
+          ]
+        }
+      },
+      "source_boundary": "20260507 matches TDX_ONE_MIN_START; unified get_oneMin cross-boundary query returned 480 rows, 240 per day, consistent datetime64[us] and other dtypes, no duplicate keys",
+      "row_value_full_scan": "last three complete sessions only; all other rows unverified"
+    },
+    "fifteen_minute": {
+      "bar_rows": 41319844,
+      "codes": 5225,
+      "ledger_dates": 509,
+      "date_range": [
+        "20240902",
+        "20261014"
+      ],
+      "missing_or_non_calendar_ledger_days": 0,
+      "recent_three_sessions": [
+        "20261012",
+        "20261013",
+        "20261014"
+      ],
+      "codes_missing_1130": {
+        "20261012": [
+          "000016.SZ",
+          "000668.SZ",
+          "002388.SZ",
+          "002731.SZ",
+          "002813.SZ",
+          "002860.SZ",
+          "300082.SZ",
+          "300773.SZ",
+          "600293.SH",
+          "601059.SH",
+          "601198.SH",
+          "688496.SH"
+        ],
+        "20261013": [
+          "000016.SZ",
+          "002388.SZ",
+          "002717.SZ",
+          "002731.SZ",
+          "002813.SZ",
+          "002860.SZ",
+          "300773.SZ",
+          "301314.SZ",
+          "600293.SH",
+          "600825.SH",
+          "601059.SH",
+          "601198.SH",
+          "688496.SH"
+        ],
+        "20261014": [
+          "000016.SZ",
+          "002388.SZ",
+          "002717.SZ",
+          "002731.SZ",
+          "300773.SZ",
+          "301314.SZ",
+          "600293.SH",
+          "600825.SH",
+          "601059.SH",
+          "601198.SH",
+          "688496.SH"
+        ]
+      },
+      "explanation": "all 36 code-date pairs marked suspend_type S; no same-day daily row or one-minute parquet records"
+    }
+  },
+  "online_sample": {
+    "tables": [
+      "minute_20261012",
+      "minute_20261013",
+      "minute_20261014",
+      "auction_20261012",
+      "auction_20261013",
+      "auction_20261014"
+    ],
+    "minute": {
+      "20261012": {
+        "rows": 20880,
+        "codes": 87,
+        "cross_day_rows": 0,
+        "duplicate_code_datetime": 0
+      },
+      "20261013": {
+        "rows": 27600,
+        "codes": 115,
+        "cross_day_rows": 20880,
+        "duplicate_code_datetime": 0
+      },
+      "20261014": {
+        "rows": 28800,
+        "codes": 120,
+        "cross_day_rows": 15120,
+        "duplicate_code_datetime": 0
+      }
+    },
+    "auction": {
+      "20261012": {
+        "rows": 2000,
+        "turnover_null": 2000
+      },
+      "20261013": {
+        "rows": 2000,
+        "turnover_null": 2000
+      },
+      "20261014": {
+        "rows": 2000,
+        "turnover_null": 2000
+      }
+    },
+    "ro_sidecars_after_query": {
+      "shm_bytes": 32768,
+      "wal_bytes": 0
+    },
+    "interpretation": "table-date/datetime cross-day mismatch confirmed in current source; turnover NULL is observed but producer contract remains to be reviewed; no business SQL writes"
+  },
+  "graphs": {
+    "theme_graph": {
+      "fact_limit_event_rows": 20670,
+      "fact_limit_event_dates": 185,
+      "fact_theme_daily_rows": 10366,
+      "fact_theme_daily_dates": 185,
+      "range": [
+        "20260105",
+        "20261013"
+      ],
+      "last_build_status": "success",
+      "last_build_as_of": "20261013",
+      "fact_membership_snapshot_rows": 0,
+      "rel_theme_stock_membership_rows": 0,
+      "source_checkpoint": "20261013"
+    },
+    "news_graph": {
+      "raw_fact_news_event_rows": 406302,
+      "raw_latest_date": "2026-10-14",
+      "raw_latest_updated_at": "2026-10-14 21:43:15",
+      "semantic_event_rows": 382808,
+      "semantic_latest_date": "2026-10-13",
+      "daily_analysis_rows": 284,
+      "daily_analysis_latest_date": "2026-10-13",
+      "pipeline_max_datetime": "2026-10-14 21:34:04",
+      "stale_sources": {
+        "fenghuang": "2026-09-10",
+        "yuncaijing": "2026-09-10"
+      }
+    }
+  },
+  "provider_api_surface": {
+    "ast_count_get_apis": 49,
+    "fingerprint_manifest": "/private/tmp/trading_restructure_20261014/api_fingerprint_manifest.json",
+    "all_49_executed": false,
+    "manifest_18_executed": true
+  },
+  "unverified": [
+    "all SQLite integrity checks",
+    "all historical minute and fifteen-minute row values",
+    "scheduler PID/stale registry/start-stop/retry lifecycle",
+    "full theme/news graph relation content",
+    "exhaustive per-file hash manifest for all SQLite, DuckDB, and Parquet descendants",
+    "full historical Parquet row-value scan on target",
+    "scheduler lifecycle/restart/retry behavior after migration"
+  ],
+  "report": "/Users/nickzhang/TradingDataManager/docs/data_integrity_verification_20261014.md",
+  "frozen_source_fingerprints": {
+    "freeze_evidence": {
+      "offline_scheduler": "launchd unloaded; no open handles reported",
+      "online_scheduler": "launchd unloaded; 17 confirmed workers exited; no open handles reported",
+      "redis": "PID 22730 remained running"
+    },
+    "api": {
+      "manifest_cases": 18,
+      "status_ok": 18,
+      "receipt": "/private/tmp/trading_restructure_20261014/api_fingerprint_source.json",
+      "note": "includes empty successful result fingerprints; status ok is not a completeness claim"
+    },
+    "online_months": {
+      "202609": {
+        "tables": 112,
+        "rows": 4126658,
+        "schema_sha256": "f40697390b8d901c75cdf979c43a77021e3275014ef8d577c8c52fe80f1c3a00",
+        "selected_dates": [
+          "20260928",
+          "20260929",
+          "20260930"
+        ],
+        "selected_fingerprints": 13,
+        "receipt": "/private/tmp/trading_restructure_20261014/online_fingerprint_source_202609.json",
+        "mode": "immutable after no writer/WAL/SHM confirmed"
+      },
+      "202610": {
+        "tables": 91,
+        "rows": 2523873,
+        "schema_sha256": "ccfa2721a3e37d7324af63b040388b49764074caba87201e02f8a862b9b5ea30",
+        "selected_dates": [
+          "20261012",
+          "20261013",
+          "20261014"
+        ],
+        "selected_fingerprints": 13,
+        "receipt": "/private/tmp/trading_restructure_20261014/online_fingerprint_source_202610.json",
+        "mode": "immutable after no writer/WAL/SHM confirmed"
+      }
+    },
+    "redis": {
+      "dbsize": 308,
+      "receipt": "/private/tmp/trading_restructure_20261014/redis_fingerprint_source.json",
+      "commands_read_only": true,
+      "compare_ttl_elapsed_adjustment": true
+    },
+    "period_semantics": {
+      "codes": [
+        "000001.SZ",
+        "600000.SH",
+        "300750.SZ"
+      ],
+      "complete_week_cutoff": "20261009",
+      "complete_month_cutoff": "20260930",
+      "sampled_rows_per_table": 9,
+      "four_tables_all_match_daily_api_aggregation": true,
+      "fields": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "vol",
+        "amount"
+      ],
+      "volume_contract": "uses project get_day(qfq=mode), then aggregates; no generic qfq-volume rule applied",
+      "receipt": "/private/tmp/trading_restructure_20261014/period_semantic_source.json",
+      "table_state": {
+        "week_rows_each": 2511637,
+        "month_rows_each": 598960,
+        "codes_each": 5832,
+        "all_max_date": "20261014",
+        "ctrl_keys_present": [
+          "cn_daily",
+          "cn_adj_factor"
+        ],
+        "ctrl_keys_missing": [
+          "cn_week",
+          "cn_month"
+        ]
+      }
+    }
+  },
+  "migration_acceptance": {
+    "status": "PASS_WITH_SCOPED_LIMITS",
+    "target_root": "/Users/nickzhang/TradingDatabase",
+    "move_evidence": {
+      "device": 16777234,
+      "operation": "same-volume directory os.rename; descendant per-file hashes not captured",
+      "directory_inodes": {
+        "offline": {
+          "source": 233754524,
+          "target": 233754524
+        },
+        "online": {
+          "source": 233756979,
+          "target": 233756979
+        },
+        "redis": {
+          "source": 233960264,
+          "target": 233960264
+        }
+      }
+    },
+    "provider_api": {
+      "cases": 18,
+      "matched": 18,
+      "mismatched": 0,
+      "comparison": "/private/tmp/trading_restructure_20261014/api_fingerprint_comparison.json"
+    },
+    "online_months": {
+      "202609": {
+        "status": "pass",
+        "tables": 112,
+        "differences": 0,
+        "comparison": "/private/tmp/trading_restructure_20261014/online_comparison_202609.json"
+      },
+      "202610": {
+        "status": "pass",
+        "tables": 91,
+        "differences": 0,
+        "comparison": "/private/tmp/trading_restructure_20261014/online_comparison_202610.json"
+      }
+    },
+    "redis": {
+      "source_keys": 308,
+      "target_keys": 308,
+      "status_counts": {
+        "pass": 308
+      },
+      "elapsed_seconds": 662.1715610027313,
+      "ttl_tolerance_ms": 3000,
+      "note": "5 TTL-only residuals exceeded 2s tolerance by about 11ms; same key/type/value hashes; all passed with 3s timing tolerance",
+      "comparison": "/private/tmp/trading_restructure_20261014/redis_fingerprint_comparison.json"
+    },
+    "period_semantics": {
+      "sample_codes": [
+        "000001.SZ",
+        "600000.SH",
+        "300750.SZ"
+      ],
+      "source_target_table_counts_equal": true,
+      "four_aggregations_match": true,
+      "source_receipt": "/private/tmp/trading_restructure_20261014/period_semantic_source.json",
+      "target_receipt": "/private/tmp/trading_restructure_20261014/period_semantic_target.json"
+    },
+    "known_source_content_issues_preserved_not_repaired": [
+      "online minute cross-day rows in 20261013/14",
+      "missing one-minute Parquet partition 20260922",
+      "auction turnover NULL producer contract unresolved",
+      "tbl_basic_ctrl has no cn_week/cn_month rows despite four period tables through 20261014"
+    ],
+    "limits": [
+      "no exhaustive per-file hashes for every SQLite/DuckDB/Parquet file",
+      "no full historical all-row Parquet value scan on target",
+      "scoped API/online/Redis/period fingerprints only"
+    ],
+    "target_receipts_directory": "/private/tmp/trading_restructure_20261014/"
+  },
+  "period_full_readonly_audit": {
+    "receipt": "/private/tmp/trading_restructure_20261014/period_full_audit_target.json",
+    "elapsed_seconds": 151.867,
+    "week_qfq_origin_key_differences": {
+      "left_only": 0,
+      "right_only": 0,
+      "left_sample": [],
+      "right_sample": []
+    },
+    "month_qfq_origin_key_differences": {
+      "left_only": 0,
+      "right_only": 0,
+      "left_sample": [],
+      "right_sample": []
+    },
+    "daily_code_universe": {
+      "codes": 5832,
+      "min_latest_date": "20150429",
+      "max_latest_date": "20261014"
+    },
+    "latest_period_vs_raw_daily": {
+      "tbl_cn_week": {
+        "daily_codes": 5832,
+        "period_codes": 5832,
+        "missing_period_codes": [],
+        "missing_period_count": 0,
+        "period_only_codes": [],
+        "period_only_count": 0,
+        "latest_date_mismatch_count": 0,
+        "latest_date_mismatch_sample": []
+      },
+      "tbl_cn_week_origin": {
+        "daily_codes": 5832,
+        "period_codes": 5832,
+        "missing_period_codes": [],
+        "missing_period_count": 0,
+        "period_only_codes": [],
+        "period_only_count": 0,
+        "latest_date_mismatch_count": 0,
+        "latest_date_mismatch_sample": []
+      },
+      "tbl_cn_month": {
+        "daily_codes": 5832,
+        "period_codes": 5832,
+        "missing_period_codes": [],
+        "missing_period_count": 0,
+        "period_only_codes": [],
+        "period_only_count": 0,
+        "latest_date_mismatch_count": 0,
+        "latest_date_mismatch_sample": []
+      },
+      "tbl_cn_month_origin": {
+        "daily_codes": 5832,
+        "period_codes": 5832,
+        "missing_period_codes": [],
+        "missing_period_count": 0,
+        "period_only_codes": [],
+        "period_only_count": 0,
+        "latest_date_mismatch_count": 0,
+        "latest_date_mismatch_sample": []
+      }
+    },
+    "monthly_qfq_close_current_factor_check": {
+      "rows_checked": 598960,
+      "missing_daily_row": 0,
+      "missing_factor_row_defaulted_to_one": 0,
+      "mismatch_count": 0,
+      "max_abs_diff": 2.2737367544323206e-13,
+      "max_relative_diff": 3.6391538989629437e-16,
+      "mismatch_examples": [],
+      "meaning": "all historical monthly qfq closes checked against current daily close at period end and current latest non-null factor"
+    },
+    "latest_week_qfq_close_current_factor_check": {
+      "rows_checked": 5832,
+      "missing_daily_row": 0,
+      "missing_factor_row_defaulted_to_one": 0,
+      "mismatch_count": 0,
+      "max_abs_diff": 2.842170943040401e-14,
+      "max_relative_diff": 2.1598232970133993e-16,
+      "mismatch_examples": [],
+      "meaning": "latest weekly qfq closes checked for every code against current daily close/factors"
+    },
+    "latest_factor_snapshot": {
+      "codes": 5832,
+      "min_factor_snap_ts": "2026-09-10T13:53:56",
+      "max_factor_snap_ts": "2026-10-14T18:00:40",
+      "min_factor_date": "20150520",
+      "max_factor_date": "20261014"
+    },
+    "month_success_log_evidence": {
+      "full_updates_started": "18:46 and 20:15 on 2026-10-14",
+      "successful_completion": "19:12:15 and 20:29:46, each 598960 rows per paired table",
+      "failed_third_attempt": "started 22:22:58; final staging log 22:52:43 at 4160/5832 codes; scheduler timed out at 22:52:59"
+    },
+    "rebuild_contract": {
+      "staging": "private temporary SQLite file, complete source histories per code batch",
+      "production_commit": "both qfq/origin tables replaced in one transaction only after all batches complete",
+      "control_keys": "service_month and periodic_kline_rebuild do not write cn_month/cn_week keys; they only read daily and adj_factor dependency keys"
+    },
+    "recommendation": "No rerun needed: two same-date successful month rebuilds preceded the incomplete third attempt; target full key sets/current date coverage and current-factor price checks all pass."
+  },
+  "code_root_used": "/Users/nickzhang/TradingDataManager",
+  "database_root_used": "/Users/nickzhang/TradingDatabase"
+}

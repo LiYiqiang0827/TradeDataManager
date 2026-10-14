@@ -1,0 +1,142 @@
+{
+  "codes": [
+    "000001.SZ",
+    "600000.SH",
+    "300750.SZ"
+  ],
+  "daily_range": [
+    "20250101",
+    "20261014"
+  ],
+  "daily_raw_rows": 1287,
+  "daily_qfq_rows": 1287,
+  "periods": {
+    "week": {
+      "week_origin": {
+        "max_table_date": "20261014",
+        "cutoff": "20261009",
+        "sampled_rows": 9,
+        "sample_codes": [
+          "000001.SZ",
+          "300750.SZ",
+          "600000.SH"
+        ],
+        "mismatches": [],
+        "checked_fields": [
+          "open",
+          "high",
+          "low",
+          "close",
+          "vol",
+          "amount"
+        ],
+        "volume_rule": "compared to project get_day(qfq=mode) then OHLC first/max/min/last, vol/amount sum; not judged against a generic adjustment formula"
+      },
+      "week_qfq": {
+        "max_table_date": "20261014",
+        "cutoff": "20261009",
+        "sampled_rows": 9,
+        "sample_codes": [
+          "000001.SZ",
+          "300750.SZ",
+          "600000.SH"
+        ],
+        "mismatches": [],
+        "checked_fields": [
+          "open",
+          "high",
+          "low",
+          "close",
+          "vol",
+          "amount"
+        ],
+        "volume_rule": "compared to project get_day(qfq=mode) then OHLC first/max/min/last, vol/amount sum; not judged against a generic adjustment formula"
+      }
+    },
+    "month": {
+      "month_origin": {
+        "max_table_date": "20261014",
+        "cutoff": "20260930",
+        "sampled_rows": 9,
+        "sample_codes": [
+          "000001.SZ",
+          "300750.SZ",
+          "600000.SH"
+        ],
+        "mismatches": [],
+        "checked_fields": [
+          "open",
+          "high",
+          "low",
+          "close",
+          "vol",
+          "amount"
+        ],
+        "volume_rule": "compared to project get_day(qfq=mode) then OHLC first/max/min/last, vol/amount sum; not judged against a generic adjustment formula"
+      },
+      "month_qfq": {
+        "max_table_date": "20261014",
+        "cutoff": "20260930",
+        "sampled_rows": 9,
+        "sample_codes": [
+          "000001.SZ",
+          "300750.SZ",
+          "600000.SH"
+        ],
+        "mismatches": [],
+        "checked_fields": [
+          "open",
+          "high",
+          "low",
+          "close",
+          "vol",
+          "amount"
+        ],
+        "volume_rule": "compared to project get_day(qfq=mode) then OHLC first/max/min/last, vol/amount sum; not judged against a generic adjustment formula"
+      }
+    }
+  },
+  "complete_cutoffs": {
+    "week": "20261009",
+    "month": "20260930",
+    "latest_daily": "20261014"
+  },
+  "period_table_counts": {
+    "tbl_cn_week": {
+      "rows": 2511637,
+      "codes": 5832,
+      "min_trade_date": "20150105",
+      "max_trade_date": "20261014"
+    },
+    "tbl_cn_week_origin": {
+      "rows": 2511637,
+      "codes": 5832,
+      "min_trade_date": "20150105",
+      "max_trade_date": "20261014"
+    },
+    "tbl_cn_month": {
+      "rows": 598960,
+      "codes": 5832,
+      "min_trade_date": "20150105",
+      "max_trade_date": "20261014"
+    },
+    "tbl_cn_month_origin": {
+      "rows": 598960,
+      "codes": 5832,
+      "min_trade_date": "20150105",
+      "max_trade_date": "20261014"
+    }
+  },
+  "control_rows": [
+    {
+      "key": "cn_adj_factor",
+      "max_date": "20261014",
+      "updated_at": "2026-10-14T18:00:41"
+    },
+    {
+      "key": "cn_daily",
+      "max_date": "20261014",
+      "updated_at": "2026-10-14T18:00:34"
+    }
+  ]
+}
