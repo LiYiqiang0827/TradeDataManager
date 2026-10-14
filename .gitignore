@@ -1,0 +1,20 @@
+# Local runtime and database contents never belong in this code repository.
+.DS_Store
+.env
+.venv/
+.runtime/
+**/data/
+**/logs/
+**/__pycache__/
+**/.pytest_cache/
+*.py[cod]
+*.sqlite
+*.sqlite3
+*.db
+*.duckdb
+*.parquet
+*.db-wal
+*.db-shm
+
+# Host-specific connection settings may contain credentials. Keep local copies out of Git.
+/coreClient/*_config.py

@@ -1,0 +1,2481 @@
+{
+  "version": "level1-v1",
+  "items": [
+    {
+      "theme_id": "T-NAME-C94AB57A8976D5",
+      "level2_name": "3D打印",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "增材制造属于工业设备范畴",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-0E3B13E73A3B55",
+      "level2_name": "AI PC",
+      "primary_level1": "消费电子",
+      "secondary_level1": [
+        "AI应用"
+      ],
+      "confidence": 0.95,
+      "rationale": "终端硬件属性为主，兼具AI属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-30FA466D91A475",
+      "level2_name": "AI应用",
+      "primary_level1": "AI应用",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-B2F1B86D07523B",
+      "level2_name": "AI手机",
+      "primary_level1": "消费电子",
+      "secondary_level1": [
+        "AI应用"
+      ],
+      "confidence": 0.95,
+      "rationale": "终端硬件属性为主，兼具AI属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-61D546C1C3630C",
+      "level2_name": "AI眼镜",
+      "primary_level1": "消费电子",
+      "secondary_level1": [
+        "AI应用"
+      ],
+      "confidence": 0.95,
+      "rationale": "可穿戴终端硬件，兼具AI属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-FC53CB910877F9",
+      "level2_name": "AI视频",
+      "primary_level1": "AI应用",
+      "secondary_level1": [
+        "文化传媒"
+      ],
+      "confidence": 0.9,
+      "rationale": "AIGC内容生成，涉及传媒应用",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DE29FACC1ECE71",
+      "level2_name": "Kimi概念",
+      "primary_level1": "AI应用",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "大模型应用，属于AI软件范畴",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-FF13C9E7F8618D",
+      "level2_name": "LED",
+      "primary_level1": "半导体",
+      "secondary_level1": [
+        "消费电子"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-7D4E8F815C9C8F",
+      "level2_name": "MIM",
+      "primary_level1": "机械设备",
+      "secondary_level1": [
+        "消费电子"
+      ],
+      "confidence": 0.8,
+      "rationale": "精密制造工艺，常用于消费电子部件",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DBCFC9690F1DE9",
+      "level2_name": "Mini/Micro",
+      "primary_level1": "消费电子",
+      "secondary_level1": [
+        "化工与新材料"
+      ],
+      "confidence": 0.9,
+      "rationale": "显示技术升级，主要应用于终端屏幕",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-3D59FD7E6D83B6",
+      "level2_name": "PEEK",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [
+        "机器人"
+      ],
+      "confidence": 0.95,
+      "rationale": "特种工程塑料，机器人关节关键材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-33A87685DA6339",
+      "level2_name": "PTFE",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "氟化工材料，用于线缆及半导体",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E6959A62BE007C",
+      "level2_name": "SOFC电池",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "固体氧化物燃料电池，属新能源技术",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F24E48C4995AC9",
+      "level2_name": "ST摘帽",
+      "primary_level1": "ST与次新",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "市场制度身份，风险警示解除",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DBEDFEEF53D8BD",
+      "level2_name": "ST板块",
+      "primary_level1": "ST与次新",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "市场制度身份，风险警示股票",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-79FC8A9AC2C594",
+      "level2_name": "VR/AR/MR",
+      "primary_level1": "消费电子",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "终端电子，沉浸式显示设备",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DD68A406BA2CC1",
+      "level2_name": "eSIM",
+      "primary_level1": "消费电子",
+      "secondary_level1": [
+        "算力与通信"
+      ],
+      "confidence": 0.85,
+      "rationale": "终端连接技术，涉及通信模组",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-07D5C74079362D",
+      "level2_name": "一季报增长",
+      "primary_level1": "业绩与财报",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "定期报告业绩事件",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9C444B16DB7896",
+      "level2_name": "一带一路",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "国家战略区域政策主题",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-D47088E38D26A8",
+      "level2_name": "上海国资",
+      "primary_level1": "国企改革",
+      "secondary_level1": [
+        "政策与区域"
+      ],
+      "confidence": 0.9,
+      "rationale": "地方国资改革，兼具区域属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-5633F6063D2E9D",
+      "level2_name": "专用设备",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于工业设备范畴",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-48D678329D57E4",
+      "level2_name": "世界杯概念",
+      "primary_level1": "大消费",
+      "secondary_level1": [
+        "文化传媒"
+      ],
+      "confidence": 0.85,
+      "rationale": "赛事带动消费与传媒",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-7367B66A1C4FCA",
+      "level2_name": "两轮车",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入汽车产业链",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-186CA58EF8D9BD",
+      "level2_name": "中字头",
+      "primary_level1": "国企改革",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "央企国企核心标签",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-21277B5B2A523B",
+      "level2_name": "中报增长",
+      "primary_level1": "业绩与财报",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "典型财报业绩事件",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-FE0ED0659BA9AA",
+      "level2_name": "举牌",
+      "primary_level1": "并购重组与股权",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "属于股权变动事件",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-1CA39DBA774FC3",
+      "level2_name": "交换机",
+      "primary_level1": "算力与通信",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "数据中心核心网络设备",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-63FE855A004013",
+      "level2_name": "人工智能",
+      "primary_level1": "AI应用",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "AI软件与模型核心",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-A72F295E230073",
+      "level2_name": "仪器仪表",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于工业仪器仪表",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-23362670E4904F",
+      "level2_name": "传感器",
+      "primary_level1": "半导体",
+      "secondary_level1": [
+        "机器人"
+      ],
+      "confidence": 0.85,
+      "rationale": "电子元件且用于机器人",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-AD0E5D73037882",
+      "level2_name": "低空经济",
+      "primary_level1": "低空经济",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-869FA6E5C361BD",
+      "level2_name": "体育产业",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [
+        "大消费"
+      ],
+      "confidence": 0.9,
+      "rationale": "体育内容与服务属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-ECC5CA7E8B2DB9",
+      "level2_name": "保健品",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [
+        "大消费"
+      ],
+      "confidence": 0.85,
+      "rationale": "健康护理与消费属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-BE85A8A1236C7D",
+      "level2_name": "保险",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "典型金融行业",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-54DFBDB1C52390",
+      "level2_name": "储能",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "明确归入新能源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-7B1059679C7FD6",
+      "level2_name": "元器件",
+      "primary_level1": "半导体",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-59C8E5090939C6",
+      "level2_name": "光伏",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "明确归入新能源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-8B3607D99549C1",
+      "level2_name": "光伏设备",
+      "primary_level1": "新能源",
+      "secondary_level1": [
+        "机械设备"
+      ],
+      "confidence": 0.9,
+      "rationale": "光伏产业链设备端",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-1D2336CB5DA86C",
+      "level2_name": "光模块",
+      "primary_level1": "算力与通信",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "通信网络核心部件",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-3230E899B333FA",
+      "level2_name": "光纤概念",
+      "primary_level1": "算力与通信",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "通信网络基础设施",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CCA054ED8FB911",
+      "level2_name": "免税",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "免税属于零售消费板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-2D80C88B4645EA",
+      "level2_name": "公路运营",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "公路运营属于交通基础设施",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-FEB1ACD7530A1E",
+      "level2_name": "养老概念",
+      "primary_level1": "大消费",
+      "secondary_level1": [
+        "医药医疗"
+      ],
+      "confidence": 0.85,
+      "rationale": "养老涉及服务消费及医疗",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9B6961EE7ED7BA",
+      "level2_name": "内蒙古自治区",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "特定行政区划政策主题",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F9100EB695D136",
+      "level2_name": "再融资",
+      "primary_level1": "并购重组与股权",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "再融资属于股权融资行为",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-79D479054BF77B",
+      "level2_name": "军工",
+      "primary_level1": "军工",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "直接对应国防军工题材",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-6F9019A1EB230B",
+      "level2_name": "农业",
+      "primary_level1": "农业",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-9C2036BA51A38E",
+      "level2_name": "农机",
+      "primary_level1": "农业",
+      "secondary_level1": [
+        "机械设备"
+      ],
+      "confidence": 0.9,
+      "rationale": "农业机械兼具农业与机械属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-174F7CDB0620C3",
+      "level2_name": "农药",
+      "primary_level1": "农业",
+      "secondary_level1": [
+        "化工与新材料"
+      ],
+      "confidence": 0.9,
+      "rationale": "农药属于农业投入品及化工",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-6ED38D7DB0A2D8",
+      "level2_name": "减肥药",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "减肥药属于医药生物领域",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-09FA31A4625E55",
+      "level2_name": "减速器",
+      "primary_level1": "机器人",
+      "secondary_level1": [
+        "机械设备"
+      ],
+      "confidence": 0.95,
+      "rationale": "减速器是机器人核心部件",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-88609AA0D9CF14",
+      "level2_name": "创投",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "创投属于金融服务板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-B84604B8BB9D7F",
+      "level2_name": "创新药",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "创新药属于医药生物领域",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-D666FE3A0A5ABC",
+      "level2_name": "包装印刷",
+      "primary_level1": "大消费",
+      "secondary_level1": [
+        "化工与新材料"
+      ],
+      "confidence": 0.8,
+      "rationale": "包装印刷常随消费或材料波动",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-4D9EB814C78D41",
+      "level2_name": "化工",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "直接对应化工板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-15EF4634D57E86",
+      "level2_name": "北京市",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "特定行政区划政策主题",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-FD901060CF92EB",
+      "level2_name": "医疗器械",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "直接对应医疗器械板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-29ACDB025D4910",
+      "level2_name": "医美",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [
+        "大消费"
+      ],
+      "confidence": 0.9,
+      "rationale": "医美兼具医疗与消费属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E4BB9DA18861C5",
+      "level2_name": "医药",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "直接对应医药板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-31B87D3EFD289E",
+      "level2_name": "华为昇腾",
+      "primary_level1": "算力与通信",
+      "secondary_level1": [
+        "半导体"
+      ],
+      "confidence": 0.9,
+      "rationale": "昇腾芯片属于算力基础设施",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-A382FB44447936",
+      "level2_name": "华为概念",
+      "primary_level1": "科技生态与平台",
+      "secondary_level1": [
+        "消费电子",
+        "算力与通信"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-D4F6BF57F8E3F1",
+      "level2_name": "华为汽车",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "智能驾驶与整车合作核心题材",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-6BAD825D79C44F",
+      "level2_name": "卫星导航",
+      "primary_level1": "商业航天",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "卫星基础设施与导航应用",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-ADA2593F340C5D",
+      "level2_name": "卫生护理",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.85,
+      "rationale": "健康护理与医疗器械服务",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-A217F3CF73059B",
+      "level2_name": "压缩机",
+      "primary_level1": "机械设备",
+      "secondary_level1": [
+        "大消费"
+      ],
+      "confidence": 0.8,
+      "rationale": "工业设备核心部件，关联家电",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9F8D394EF97EC7",
+      "level2_name": "发电机",
+      "primary_level1": "电力电网",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "电力生产核心设备",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-595D336967D3A3",
+      "level2_name": "变压器",
+      "primary_level1": "电力电网",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "电网输变电核心设备",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E200848F33D49A",
+      "level2_name": "可控核聚变",
+      "primary_level1": "新能源",
+      "secondary_level1": [
+        "机械设备"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-75A8F7584A2C2C",
+      "level2_name": "商业航天",
+      "primary_level1": "商业航天",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-C738607C0E86D3",
+      "level2_name": "啤酒",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "食品饮料典型消费品种",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9CF8F2FADA3061",
+      "level2_name": "园林",
+      "primary_level1": "地产基建",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "基础设施与景观建设",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DB7104B229220A",
+      "level2_name": "固废处理",
+      "primary_level1": "环保公用",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "垃圾处理与环保服务",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-66DF1C3099E534",
+      "level2_name": "固态电池",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "锂电技术迭代，新能源核心",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DC6DC59914EFF0",
+      "level2_name": "国产软件",
+      "primary_level1": "软件与数字经济",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-C169DBB23CE1A5",
+      "level2_name": "国有企业",
+      "primary_level1": "国企改革",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "直接对应国企改革题材",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-8EB3399438AD02",
+      "level2_name": "地产链",
+      "primary_level1": "地产基建",
+      "secondary_level1": [
+        "大消费"
+      ],
+      "confidence": 0.85,
+      "rationale": "房地产上下游，含家电建材",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-057CF7D0D322AC",
+      "level2_name": "垃圾发电",
+      "primary_level1": "环保公用",
+      "secondary_level1": [
+        "电力电网"
+      ],
+      "confidence": 0.9,
+      "rationale": "固废处理与绿色电力结合",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-259E30B93B9B5B",
+      "level2_name": "培育钻石",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [
+        "大消费"
+      ],
+      "confidence": 0.8,
+      "rationale": "非金属材料，兼具消费属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DF37E1008E0E5B",
+      "level2_name": "基础建设",
+      "primary_level1": "地产基建",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "直接对应基础设施题材",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-08D27D63CE6E0A",
+      "level2_name": "外贸",
+      "primary_level1": "外贸与出海",
+      "secondary_level1": [
+        "政策与区域"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-55A3AF2C85D7ED",
+      "level2_name": "大圆柱电池",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "锂电池核心形态，属新能源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-BF8A1061E0D822",
+      "level2_name": "大飞机",
+      "primary_level1": "军工",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入军工大飞机板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F0DE50C16CE85E",
+      "level2_name": "天然气",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "油气资源，归入有色与资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-044EFCA63E84D0",
+      "level2_name": "太空光伏",
+      "primary_level1": "商业航天",
+      "secondary_level1": [
+        "新能源"
+      ],
+      "confidence": 0.85,
+      "rationale": "太空基础设施结合光伏技术",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-245AF1948E553C",
+      "level2_name": "央企",
+      "primary_level1": "国企改革",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "央企改革核心题材",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CFA84E4C75585D",
+      "level2_name": "字节概念",
+      "primary_level1": "科技生态与平台",
+      "secondary_level1": [
+        "AI应用",
+        "文化传媒"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-091CA5213EF335",
+      "level2_name": "存储",
+      "primary_level1": "半导体",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-BEC1BE82CEE8E3",
+      "level2_name": "实控人变更",
+      "primary_level1": "并购重组与股权",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "股权变动典型事件",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-5AC18E6DA2658F",
+      "level2_name": "宠物经济",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入大消费宠物板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-BC4AAA42173488",
+      "level2_name": "家电",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入大消费家电板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-C175304F82175C",
+      "level2_name": "工业互联网",
+      "primary_level1": "软件与数字经济",
+      "secondary_level1": [
+        "AI应用",
+        "算力与通信"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-36BE678BD6C6A2",
+      "level2_name": "工业母机",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入机械设备工业母机",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DAA856B8100B06",
+      "level2_name": "工业气体",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "化工基础材料，归入化工",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-B0B9B76BEEF43A",
+      "level2_name": "工程机械",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入机械设备工程机械",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-B290889DEFD085",
+      "level2_name": "平台经济",
+      "primary_level1": "软件与数字经济",
+      "secondary_level1": [
+        "科技生态与平台",
+        "大消费"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-542924AC317F82",
+      "level2_name": "年报增长",
+      "primary_level1": "业绩与财报",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "明确归入业绩与财报",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-39FFBC864D1E1B",
+      "level2_name": "并购重组",
+      "primary_level1": "并购重组与股权",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "明确归入并购重组与股权",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-ED7220AA900C8A",
+      "level2_name": "彩票概念",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-7912CF8460F18F",
+      "level2_name": "影视院线",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入文化传媒影视",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E983216C683FE2",
+      "level2_name": "快递",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确归入交通物流快递",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-75A5E1BC515ECF",
+      "level2_name": "房地产",
+      "primary_level1": "地产基建",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "直接对应地产基建板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-491F7E6D04FEBE",
+      "level2_name": "打印机",
+      "primary_level1": "消费电子",
+      "secondary_level1": [],
+      "confidence": 0.85,
+      "rationale": "办公终端设备，归入消费电子",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-0FB04DFA6E7A2A",
+      "level2_name": "折叠屏",
+      "primary_level1": "消费电子",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "手机形态创新，属消费电子",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-7C30099B89F33B",
+      "level2_name": "操作系统",
+      "primary_level1": "软件与数字经济",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-6747C881F535BC",
+      "level2_name": "教育",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "教育内容与服务，归入文化传媒",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-A137FAA1E5E5F8",
+      "level2_name": "数字经济",
+      "primary_level1": "软件与数字经济",
+      "secondary_level1": [
+        "AI应用"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-02C951E3D72F9C",
+      "level2_name": "数字货币",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "支付与金融科技，归入金融",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-BF327C633067BB",
+      "level2_name": "文创产品",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "版权与文创，归入文化传媒",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-116FCEF61DC493",
+      "level2_name": "文化传媒",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "直接对应文化传媒板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-707E61828B18AE",
+      "level2_name": "新型城镇化",
+      "primary_level1": "地产基建",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-0A820EE1B12F2B",
+      "level2_name": "新型工业化",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-A7033721DDD55C",
+      "level2_name": "新材料概念",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "直接对应化工与新材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-49A9D6B3C36333",
+      "level2_name": "旅游",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "服务消费，归入大消费",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-1674B06F5525CE",
+      "level2_name": "无人机",
+      "primary_level1": "军工",
+      "secondary_level1": [
+        "低空经济"
+      ],
+      "confidence": 0.85,
+      "rationale": "低空经济/军工，归入军工",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-87EE30BB343A9C",
+      "level2_name": "无人驾驶",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "智能驾驶，归入汽车产业链",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CF455C8FD0E077",
+      "level2_name": "智慧矿山",
+      "primary_level1": "机械设备",
+      "secondary_level1": [
+        "有色与资源"
+      ],
+      "confidence": 0.8,
+      "rationale": "工业设备应用，归入机械设备",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-859CE7E3B4A3E3",
+      "level2_name": "智能交通",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "交通基础设施，归入交通物流",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-808EA5FD6152A1",
+      "level2_name": "智能家居",
+      "primary_level1": "消费电子",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "终端电子，归入消费电子",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-5FC416D38AE8C2",
+      "level2_name": "智能物流",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "物流自动化，归入交通物流",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-92F70315111DB7",
+      "level2_name": "智能电网",
+      "primary_level1": "电力电网",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "直接对应电力电网板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-67DB5F9F1D2987",
+      "level2_name": "智能驾驶",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于汽车智能化核心方向",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-FBEC807F7C9960",
+      "level2_name": "有色金属",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "直接对应有色资源板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-B9E23F34337FB2",
+      "level2_name": "服装家纺",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于传统消费领域",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-BE8F35549D0C2F",
+      "level2_name": "期货概念",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "属于金融衍生品交易",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-8BBA82474F817F",
+      "level2_name": "机器人概念",
+      "primary_level1": "机器人",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-77B33A32EC4FB8",
+      "level2_name": "机器视觉",
+      "primary_level1": "机器人",
+      "secondary_level1": [
+        "AI应用"
+      ],
+      "confidence": 0.85,
+      "rationale": "机器人感知核心，兼具AI属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-64589B9DA0B5C6",
+      "level2_name": "机场航空",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于航空运输基础设施",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-C88333A0BFC6E1",
+      "level2_name": "柴油发电机",
+      "primary_level1": "电力电网",
+      "secondary_level1": [
+        "机械设备"
+      ],
+      "confidence": 0.8,
+      "rationale": "发电设备，兼具机械属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-7371F9F3F471BF",
+      "level2_name": "核电",
+      "primary_level1": "电力电网",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "属于电力能源核心板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-10B2358D0BCF17",
+      "level2_name": "橡胶",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "属于化工基础材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-AF9F09D4E04B18",
+      "level2_name": "次新股",
+      "primary_level1": "ST与次新",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "直接对应次新身份",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-2A180B596B0780",
+      "level2_name": "民营医院",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于医疗服务机构",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9273FDC3488AC1",
+      "level2_name": "氢能源",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于新能源技术方向",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E12A60C96717AF",
+      "level2_name": "氧化锆",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.85,
+      "rationale": "属于特种无机非金属材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-A67C6945757EC5",
+      "level2_name": "水产品",
+      "primary_level1": "农业",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "属于水产养殖板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CC94533B0E27D0",
+      "level2_name": "水务",
+      "primary_level1": "环保公用",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于公用事业服务",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-5FD8E61F81A33F",
+      "level2_name": "汽车充电",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [
+        "电力电网"
+      ],
+      "confidence": 0.9,
+      "rationale": "新能源汽车配套，涉及电力",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-10FE44BDF0A474",
+      "level2_name": "汽车类",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "泛指汽车整车及产业链",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-23404F5B84AE25",
+      "level2_name": "汽车零部件",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "直接对应汽车供应链",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-173288FCB657C9",
+      "level2_name": "洁净室",
+      "primary_level1": "半导体",
+      "secondary_level1": [
+        "地产基建"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-3FD7B81F16BEEA",
+      "level2_name": "海南",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "典型区域政策主题",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E38A6D70AFD8BB",
+      "level2_name": "海峡两岸",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "明确属于区域政策范畴",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-C71BD65E36818E",
+      "level2_name": "海洋经济",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "定义中明确归入区域政策",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-85B90FD5B69EBF",
+      "level2_name": "消费电子",
+      "primary_level1": "消费电子",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "名称与一级题材完全一致",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-8D13859357868D",
+      "level2_name": "消防",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-AF08CD59EB2E10",
+      "level2_name": "液冷",
+      "primary_level1": "算力与通信",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "定义中明确包含液冷",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CADDFB9BBC2E07",
+      "level2_name": "深圳",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "典型区域政策主题",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-C833DB86672A25",
+      "level2_name": "港口",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "定义中明确包含港口",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-2305EE3CA36FF7",
+      "level2_name": "游戏",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "定义中明确包含游戏",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-44BEC40645E883",
+      "level2_name": "激光",
+      "primary_level1": "机械设备",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-3CAC072C2D5EC8",
+      "level2_name": "烟草",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.85,
+      "rationale": "属于传统消费品范畴",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-4A32010647BBE9",
+      "level2_name": "热力",
+      "primary_level1": "环保公用",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "定义中明确包含供热",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CEC8FEE8CA67E5",
+      "level2_name": "热泵",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-7A4E4EA687F372",
+      "level2_name": "煤炭",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "定义中明确包含煤炭",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-A2833AA225E92E",
+      "level2_name": "燃气轮机",
+      "primary_level1": "电力电网",
+      "secondary_level1": [
+        "机械设备"
+      ],
+      "confidence": 0.8,
+      "rationale": "发电设备，兼具机械属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-B72CA188197910",
+      "level2_name": "版权",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "定义中明确包含版权",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-C81CFDE5A6ECD9",
+      "level2_name": "物流",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "定义中明确包含物流",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-D9D537A8575B19",
+      "level2_name": "物理AI",
+      "primary_level1": "机器人",
+      "secondary_level1": [
+        "AI应用"
+      ],
+      "confidence": 0.9,
+      "rationale": "定义中明确归入机器人",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-03D92F383620E3",
+      "level2_name": "猪肉",
+      "primary_level1": "农业",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "属于养殖板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-B34ACADDAA65D4",
+      "level2_name": "环保",
+      "primary_level1": "环保公用",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "名称与一级题材核心词一致",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9D90A6E5E81712",
+      "level2_name": "玻璃",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "基础建材与材料属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-8100F292CF3FB9",
+      "level2_name": "玻璃基板",
+      "primary_level1": "半导体",
+      "secondary_level1": [
+        "消费电子"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-429C48B8F5AEE2",
+      "level2_name": "玻纤",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "非金属新材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-82ACC1A63C70FC",
+      "level2_name": "生物质能",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "清洁能源技术",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-08B9BE548F0B23",
+      "level2_name": "生育概念",
+      "primary_level1": "大消费",
+      "secondary_level1": [
+        "医药医疗"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-67D34E424D3A0B",
+      "level2_name": "电力",
+      "primary_level1": "电力电网",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "核心电力行业",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-69716B9C81DAB1",
+      "level2_name": "电子布",
+      "primary_level1": "半导体",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-00A0DAFC455AFA",
+      "level2_name": "电子树脂",
+      "primary_level1": "半导体",
+      "secondary_level1": [
+        "化工与新材料"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-07CD56DB07FBAB",
+      "level2_name": "电子烟",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "新型烟草消费品",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-605DFAD96163CD",
+      "level2_name": "电梯概念",
+      "primary_level1": "机械设备",
+      "secondary_level1": [
+        "地产基建"
+      ],
+      "confidence": 0.8,
+      "rationale": "专用设备，关联建筑",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-BA8AD72DE3FFEF",
+      "level2_name": "电气设备",
+      "primary_level1": "电力电网",
+      "secondary_level1": [
+        "机械设备"
+      ],
+      "confidence": 0.85,
+      "rationale": "输配电设备",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E2D69E9008969F",
+      "level2_name": "电源",
+      "primary_level1": "电力电网",
+      "secondary_level1": [
+        "消费电子"
+      ],
+      "confidence": 0.75,
+      "rationale": "涵盖电网及终端电源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-41D71FE40E27E0",
+      "level2_name": "电解液",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "锂电核心材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-3151A780174C71",
+      "level2_name": "电阻电容",
+      "primary_level1": "半导体",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-1CF741745D1035",
+      "level2_name": "疫苗概念",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "生物制品",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-ABBC1C47042BC0",
+      "level2_name": "病毒防治",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "公共卫生与医药",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-055CD0E6985E5B",
+      "level2_name": "白酒",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "食品饮料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-276AB8056CA684",
+      "level2_name": "眼科医疗",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "医疗服务",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-0A21C273B0BD7B",
+      "level2_name": "石墨化",
+      "primary_level1": "新能源",
+      "secondary_level1": [
+        "有色与资源"
+      ],
+      "confidence": 0.85,
+      "rationale": "锂电负极工艺",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-20F5A4802D2A5F",
+      "level2_name": "石墨烯",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [
+        "新能源"
+      ],
+      "confidence": 0.85,
+      "rationale": "特种新材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-26B820A828C5B4",
+      "level2_name": "石油石化",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "油气资源归入有色与资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-0954A912CD9889",
+      "level2_name": "石英材料",
+      "primary_level1": "半导体",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-9846B93FFB7D40",
+      "level2_name": "硅片",
+      "primary_level1": "半导体",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "半导体核心材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F9BAE0D779C8B8",
+      "level2_name": "碳纤维",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [
+        "机器人"
+      ],
+      "confidence": 0.9,
+      "rationale": "特种材料，机器人应用",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9571C890FE5582",
+      "level2_name": "稀土永磁",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [
+        "机器人"
+      ],
+      "confidence": 0.95,
+      "rationale": "稀土资源，电机核心",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-04218D0A53C089",
+      "level2_name": "端侧AI",
+      "primary_level1": "AI应用",
+      "secondary_level1": [
+        "消费电子"
+      ],
+      "confidence": 0.95,
+      "rationale": "AI终端应用",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E23D776C09BEB0",
+      "level2_name": "算力",
+      "primary_level1": "算力与通信",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "算力基础设施",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-BA36C570848789",
+      "level2_name": "绿色电力",
+      "primary_level1": "电力电网",
+      "secondary_level1": [
+        "新能源"
+      ],
+      "confidence": 0.95,
+      "rationale": "电力运营，新能源属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-350756D79C3817",
+      "level2_name": "网红经济",
+      "primary_level1": "大消费",
+      "secondary_level1": [
+        "文化传媒"
+      ],
+      "confidence": 0.8,
+      "rationale": "消费流量，传媒属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-38C84C801539A7",
+      "level2_name": "网络安全",
+      "primary_level1": "软件与数字经济",
+      "secondary_level1": [
+        "算力与通信"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-E3E2CE2A108B7B",
+      "level2_name": "美容护理",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "消费板块明确",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E2CABAFC0B54BE",
+      "level2_name": "职业教育",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "教育内容归入文化传媒",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-489A8F99EF025B",
+      "level2_name": "股权转让",
+      "primary_level1": "并购重组与股权",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "股权事件明确",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-A5FDDE3DD34418",
+      "level2_name": "脑机接口",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [
+        "AI应用"
+      ],
+      "confidence": 0.85,
+      "rationale": "医疗器械，AI交叉",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F4B9DE3ABC456B",
+      "level2_name": "腾讯概念",
+      "primary_level1": "科技生态与平台",
+      "secondary_level1": [
+        "AI应用",
+        "文化传媒"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-CAE62C72658E3A",
+      "level2_name": "自行车",
+      "primary_level1": "大消费",
+      "secondary_level1": [
+        "汽车产业链"
+      ],
+      "confidence": 0.75,
+      "rationale": "两轮车，消费属性",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-525497BCB14B82",
+      "level2_name": "航运",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 0.98,
+      "rationale": "物流板块明确",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-DE0204639B585C",
+      "level2_name": "芯片",
+      "primary_level1": "半导体",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-8A8829133573F4",
+      "level2_name": "虚拟人",
+      "primary_level1": "AI应用",
+      "secondary_level1": [
+        "文化传媒"
+      ],
+      "confidence": 0.9,
+      "rationale": "AI应用，传媒内容",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-652876D706F7E8",
+      "level2_name": "装修家具",
+      "primary_level1": "大消费",
+      "secondary_level1": [
+        "地产基建"
+      ],
+      "confidence": 0.9,
+      "rationale": "家居消费，地产后周期",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-FC0981608382C5",
+      "level2_name": "证券",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "券商属于金融板块核心",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E842AED3C257C5",
+      "level2_name": "足球概念",
+      "primary_level1": "文化传媒",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "体育娱乐归入文化传媒",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-20DF5A6E7E540C",
+      "level2_name": "跨境支付",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "支付业务属于金融范畴",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-51DFDD60427C98",
+      "level2_name": "车路云",
+      "primary_level1": "汽车产业链",
+      "secondary_level1": [
+        "算力与通信"
+      ],
+      "confidence": 0.9,
+      "rationale": "智能驾驶基础设施，涉及通信",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-010AB79678C7F7",
+      "level2_name": "轨道交通",
+      "primary_level1": "交通物流",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "明确属于交通物流板块",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F97CB6B6C6A7DB",
+      "level2_name": "通信",
+      "primary_level1": "算力与通信",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "通信网络归入算力与通信",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-AD5611AB7540B5",
+      "level2_name": "造纸",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "造纸属于化工与新材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-0726170E6D12D1",
+      "level2_name": "造船",
+      "primary_level1": "军工",
+      "secondary_level1": [
+        "交通物流"
+      ],
+      "confidence": 0.8,
+      "rationale": "船舶常归军工，亦涉交通",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F02AB278282AB5",
+      "level2_name": "酿酒",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "食品饮料属于大消费",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-0C92D071FEBA14",
+      "level2_name": "金刚石概念",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "超硬材料归入新材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-58A70DC24DCE17",
+      "level2_name": "金属钨",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "小金属属于有色资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-9BCF99A5A13695",
+      "level2_name": "金属铝",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "工业金属属于有色资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-F0D790A3879BA4",
+      "level2_name": "金属锗",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "小金属属于有色资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-66588DFA43CD60",
+      "level2_name": "金融概念",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "泛金融主题归入金融",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-D16D2ED96864B0",
+      "level2_name": "金融科技",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "金融科技明确归入金融",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-EE51537F93A7BB",
+      "level2_name": "钠电池",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "新型电池属于新能源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-940AE43788E242",
+      "level2_name": "钢铁",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "钢铁属于有色与资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CB8A39D9D1D90E",
+      "level2_name": "银行",
+      "primary_level1": "金融",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "银行属于金融板块核心",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-10E4487A0C6F9C",
+      "level2_name": "锂电池",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "锂电属于新能源核心",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-5F70E98FC83B1C",
+      "level2_name": "锂矿",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 1.0,
+      "rationale": "锂矿属于有色资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-8DB085B6DE4B6D",
+      "level2_name": "阶跃星辰",
+      "primary_level1": "AI应用",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "大模型公司，属AI应用",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-80287DBDEA5E38",
+      "level2_name": "阿尔茨海默",
+      "primary_level1": "医药医疗",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "疾病治疗，属医药医疗",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-27C50396BCC07D",
+      "level2_name": "阿里巴巴概念",
+      "primary_level1": "科技生态与平台",
+      "secondary_level1": [
+        "AI应用",
+        "大消费"
+      ],
+      "confidence": 1.0,
+      "rationale": "用户口径或人工复核规则",
+      "classification_source": "user_or_curated_override",
+      "review_status": "confirmed"
+    },
+    {
+      "theme_id": "T-NAME-1034F8560D138C",
+      "level2_name": "雄安新区",
+      "primary_level1": "政策与区域",
+      "secondary_level1": [
+        "地产基建"
+      ],
+      "confidence": 0.95,
+      "rationale": "国家级新区，区域政策主题",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-E021A91637255F",
+      "level2_name": "零售",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "商业零售，属大消费",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-64C0367B6FD2D5",
+      "level2_name": "露营经济",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "户外休闲，属大消费",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-62B25993FA73D0",
+      "level2_name": "非金属材料",
+      "primary_level1": "化工与新材料",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "材料分类，属化工新材料",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-35CAD0FA7D4BDB",
+      "level2_name": "面板",
+      "primary_level1": "消费电子",
+      "secondary_level1": [],
+      "confidence": 0.9,
+      "rationale": "显示终端，属消费电子",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-8F273D5E751DCA",
+      "level2_name": "风电",
+      "primary_level1": "新能源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "风力发电，属新能源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-765D72D1E47A7C",
+      "level2_name": "食品饮料",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "日常消费，属大消费",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-072B496452FBA5",
+      "level2_name": "饲料",
+      "primary_level1": "农业",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "养殖上游，属农业",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-EF00786A401DF1",
+      "level2_name": "鸡肉",
+      "primary_level1": "农业",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "禽类养殖，属农业",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-CF25DB746A40F9",
+      "level2_name": "黄酒",
+      "primary_level1": "大消费",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "酒类消费，属大消费",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    },
+    {
+      "theme_id": "T-NAME-3713947F42291C",
+      "level2_name": "黄金",
+      "primary_level1": "有色与资源",
+      "secondary_level1": [],
+      "confidence": 0.95,
+      "rationale": "贵金属，属有色资源",
+      "classification_source": "qwen-vllm:/home/sysadmin/data/disk02/jc/models/qwen3.8-27b-fp8",
+      "review_status": "reviewed_v1"
+    }
+  ]
+}

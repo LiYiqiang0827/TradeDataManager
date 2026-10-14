@@ -1,0 +1,66 @@
+{
+  "provider": "minimax-hermes",
+  "cases": 2,
+  "valid_json_cases": 2,
+  "exact_field_accuracy": 1.0,
+  "results": [
+    {
+      "case_id": "seed-002918",
+      "provider": "minimax-hermes",
+      "elapsed_seconds": 6.76,
+      "matches": {
+        "market_role": true,
+        "business_relation": true,
+        "commercial_stage": true,
+        "industrial_core": true
+      },
+      "output": {
+        "market_role": "height_core",
+        "business_relation": "equity_investment",
+        "commercial_stage": "sample_testing",
+        "industrial_core": false,
+        "conclusion": "5连板为芯片题材最高标，但公司主营建筑陶瓷，芯片仅通过参股公司陶瓷基板介入且处研发送样阶段，并否认供应商关系，产业核心尚未形成。",
+        "positive_evidence_ids": [
+          "E1",
+          "E3"
+        ],
+        "negative_evidence_ids": [
+          "E2",
+          "E4"
+        ],
+        "confidence": 0.3,
+        "needs_review": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "seed-000417",
+      "provider": "minimax-hermes",
+      "elapsed_seconds": 5.302,
+      "matches": {
+        "market_role": true,
+        "business_relation": true,
+        "commercial_stage": true,
+        "industrial_core": true
+      },
+      "output": {
+        "market_role": "height_core",
+        "business_relation": "indirect_fund",
+        "commercial_stage": "none",
+        "industrial_core": false,
+        "conclusion": "3连板为题材最高标，但公司否认存储芯片主营关联，仅历史通过基金间接投资，无收入订单或利润弹性",
+        "positive_evidence_ids": [
+          "E1",
+          "E3"
+        ],
+        "negative_evidence_ids": [
+          "E2",
+          "E3"
+        ],
+        "confidence": 0.2,
+        "needs_review": true
+      },
+      "error": null
+    }
+  ]
+}

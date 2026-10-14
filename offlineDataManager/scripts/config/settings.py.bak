@@ -1,0 +1,578 @@
+"""
+~/TradingAgent/offlineDataManager/config/settings.py
+项目配置:数据库路径 + schema (Tushare token 已移到 ~/TradingAgent/coreClient/tushare_config.py)
+"""
+from pathlib import Path
+
+# ==================== 路径 ====================
+# 2026-09-10 改造:cn_data 已并入 ~/TradingAgent/offlineDataManager/
+# PROJECT_ROOT 改为相对路径(__file__ 的 2 层父目录),不依赖 cwd
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+LOG_DIR = PROJECT_ROOT / "logs"
+
+# ========== 三个数据库(2026-09-10 拆分,模仿 MyATM)==========
+# db_cn_basic.db:基础数据(日 K、复权、交易历、股票信息、周月 K)
+DB_PATH_BASIC = DATA_DIR / "db_cn_basic.db"
+
+# db_cn_kpl.db:开盘啦数据
+DB_PATH_KPL = DATA_DIR / "db_cn_kpl.db"
+
+# db_cn_news.db:新闻数据
+DB_PATH_NEWS = DATA_DIR / "db_cn_news.db"
+
+# db_cn_index.db:指数数据(2026-09-15 新增,用户要求单独数据库)
+DB_PATH_INDEX = DATA_DIR / "db_cn_index.db"
+
+# 兼容旧代码(DB_PATH → db_cn_basic.db)
+DB_PATH = DB_PATH_BASIC
+
+# 确保目录存在
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+# ==================== 数据源优先级 ====================
+DEFAULT_SOURCE = "tushare"  # 仅用 Tushare(未来可加 wzw 备份)
+
+# ==================== 增量窗口 ====================
+DEFAULT_LOOKBACK_DAYS = 7  # 增量更新时多往前看 7 天(避免漏数据)
+
+# ==================== 日志 ====================
+LOG_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> | {message}"
+LOG_LEVEL = "INFO"
+
+# ==================== DB 表 schema(三个数据库拆分)====================
+
+# ========== db_cn_basic.db 的 schema ==========
+# 包含:股票基本信息、交易日历、日 K、周 K、月 K、复权因子、通用断点
+SCHEMA_SQL_BASIC = """
+-- 股票基本信息(全量,5560 行)
+CREATE TABLE IF NOT EXISTS tbl_cn_basic (
+    ts_code TEXT PRIMARY KEY,
+    symbol TEXT,
+    name TEXT,
+    industry TEXT,
+    fullname TEXT,
+    enname TEXT,
+    cnspell TEXT,
+    market TEXT,
+    exchange TEXT,
+    curr_type TEXT,
+    list_status TEXT,
+    list_date TEXT,
+    delist_date TEXT,
+    is_hs TEXT,
+    snap_ts TEXT
+);
+
+-- 交易日历
+CREATE TABLE IF NOT EXISTS tbl_cn_tradecal (
+    cal_date TEXT NOT NULL,
+    exchange TEXT NOT NULL,
+    is_open INTEGER,
+    pretrade_date TEXT,
+    snap_ts TEXT,
+    PRIMARY KEY (cal_date, exchange)
+);
+CREATE INDEX IF NOT EXISTS idx_tradecal_date ON tbl_cn_tradecal(cal_date);
+
+-- 日 K(不复权)
+CREATE TABLE IF NOT EXISTS tbl_cn_day (
+    ts_code TEXT NOT NULL,
+    trade_date TEXT NOT NULL,
+    open REAL, high REAL, low REAL, close REAL,
+    pre_close REAL,
+    change REAL, pct_chg REAL,
+    vol REAL, amount REAL,
+    snap_ts TEXT,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_day_date ON tbl_cn_day(trade_date);
+
+-- 复权因子(从 Tushare pro.adj_factor 拉取)
+CREATE TABLE IF NOT EXISTS tbl_cn_adj_factor (
+    ts_code TEXT NOT NULL,
+    trade_date TEXT NOT NULL,
+    adj_factor REAL,
+    snap_ts TEXT,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_adj_date ON tbl_cn_adj_factor(trade_date);
+
+-- 周 K(从日 K 前复权数据聚合,覆盖更新)
+CREATE TABLE IF NOT EXISTS tbl_cn_week (
+    ts_code    TEXT NOT NULL,
+    trade_date TEXT NOT NULL,    -- 周内最后交易日 (YYYYMMDD)
+    open       REAL,
+    high       REAL,
+    low        REAL,
+    close      REAL,
+    pre_close  REAL,
+    change     REAL,
+    pct_chg    REAL,
+    vol        REAL,
+    amount     REAL,
+    snap_ts    TEXT,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_week_date ON tbl_cn_week(trade_date);
+
+-- 月 K(从日 K 前复权数据聚合,覆盖更新)
+CREATE TABLE IF NOT EXISTS tbl_cn_month (
+    ts_code    TEXT NOT NULL,
+    trade_date TEXT NOT NULL,    -- 月内最后交易日 (YYYYMMDD)
+    open       REAL,
+    high       REAL,
+    low        REAL,
+    close      REAL,
+    pre_close  REAL,
+    change     REAL,
+    pct_chg    REAL,
+    vol        REAL,
+    amount     REAL,
+    snap_ts    TEXT,
+    PRIMARY KEY (ts_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_month_date ON tbl_cn_month(trade_date);
+
+-- 通用断点表(每张表一个 key,管理 basic 库各表的断点)
+CREATE TABLE IF NOT EXISTS tbl_basic_ctrl (
+    key TEXT PRIMARY KEY,
+    max_date TEXT,
+    updated_at TEXT
+);
+
+-- 每日涨跌停价格(tushare pro.stk_limit)
+-- 文档:https://tushare.pro/document/2?doc_id=183
+CREATE TABLE IF NOT EXISTS tbl_cn_stk_limit (
+    trade_date TEXT NOT NULL,    -- YYYYMMDD
+    ts_code    TEXT NOT NULL,    -- 股票 / 场内基金代码
+    up_limit   REAL,            -- 涨停价
+    down_limit REAL,            -- 跌停价
+    snap_ts    TEXT,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_stk_limit_date ON tbl_cn_stk_limit(trade_date);
+
+-- 每日停复牌信息(tushare pro.suspend_d)
+-- 文档:https://tushare.pro/document/2?doc_id=214
+-- 注意:该接口记录的是"每日快照",停牌期间每天都有一行(覆盖从停牌到复牌期间的连续日期)
+CREATE TABLE IF NOT EXISTS tbl_cn_suspend (
+    trade_date      TEXT NOT NULL,    -- 停复牌日期(YYYYMMDD)
+    ts_code         TEXT NOT NULL,    -- 股票代码
+    suspend_timing  TEXT,            -- 日内停牌时间段(09:30-10:00 等),日内停牌才有值,否则 NULL
+    suspend_type    TEXT NOT NULL,    -- S=停牌 / R=复牌
+    snap_ts         TEXT,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_suspend_date ON tbl_cn_suspend(trade_date);
+CREATE INDEX IF NOT EXISTS idx_suspend_code ON tbl_cn_suspend(ts_code);
+
+-- 个股资金流向(tushare pro.moneyflow)
+-- 文档:https://tushare.pro/document/2?doc_id=170
+-- 实际起始:2015-01-05(文档说 2010,实测 2015 起)
+-- 限制:单次最多 6000 条;积分要求 2000+
+-- 单月 > 6000 行,需要 OFFSET 分页
+CREATE TABLE IF NOT EXISTS tbl_cn_moneyflow (
+    trade_date      TEXT NOT NULL,    -- YYYYMMDD
+    ts_code         TEXT NOT NULL,    -- 股票代码
+    -- 小单(<5万)
+    buy_sm_vol      INTEGER,         -- 小单买入量(手)
+    buy_sm_amount   REAL,            -- 小单买入金额(万元)
+    sell_sm_vol     INTEGER,         -- 小单卖出量
+    sell_sm_amount  REAL,            -- 小单卖出金额
+    -- 中单(5万~20万)
+    buy_md_vol      INTEGER,
+    buy_md_amount   REAL,
+    sell_md_vol     INTEGER,
+    sell_md_amount  REAL,
+    -- 大单(20万~100万)
+    buy_lg_vol      INTEGER,
+    buy_lg_amount   REAL,
+    sell_lg_vol     INTEGER,
+    sell_lg_amount  REAL,
+    -- 特大单(>=100万)
+    buy_elg_vol     INTEGER,
+    buy_elg_amount  REAL,
+    sell_elg_vol    INTEGER,
+    sell_elg_amount REAL,
+    -- 净流入
+    net_mf_vol      INTEGER,         -- 净流入量(手)
+    net_mf_amount   REAL,            -- 净流入额(万元)
+    snap_ts         TEXT,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_moneyflow_date ON tbl_cn_moneyflow(trade_date);
+CREATE INDEX IF NOT EXISTS idx_moneyflow_code ON tbl_cn_moneyflow(ts_code);
+
+-- 融资融券交易汇总(tushare pro.margin)
+-- 文档:https://tushare.pro/document/2?doc_id=58
+-- 实际起始:2010-04-01(BSE 2021 开业前只有 SSE/SZSE 2 行)
+-- 限制:单次最多 3 行(SSE + SZSE + BSE),无 range 参数支持
+-- 返回 9 列:trade_date, exchange_id, rzye(融资余额), rzmre(融资买入), rzche(融资偿还),
+--              rqye(融券余额), rqmcl(融券卖出量), rzrqye(融资融券余额), rqyl(融券余量)
+CREATE TABLE IF NOT EXISTS tbl_cn_margin (
+    trade_date   TEXT NOT NULL,    -- YYYYMMDD
+    exchange_id  TEXT NOT NULL,    -- SSE / SZSE / BSE
+    rzye         REAL,             -- 融资余额(元)
+    rzmre        REAL,             -- 融资买入额(元)
+    rzche        REAL,             -- 融资偿还额(元)
+    rqye         REAL,             -- 融券余额(元)
+    rqmcl        REAL,             -- 融券卖出量(股)
+    rzrqye       REAL,             -- 融资融券余额(元)
+    rqyl         REAL,             -- 融券余量(股)
+    snap_ts      TEXT,
+    PRIMARY KEY (trade_date, exchange_id)
+);
+CREATE INDEX IF NOT EXISTS idx_margin_date ON tbl_cn_margin(trade_date);
+
+-- 融资融券交易明细(tushare pro.margin_detail)
+-- 文档:https://tushare.pro/document/2?doc_id=59
+CREATE TABLE IF NOT EXISTS tbl_cn_margin_detail (
+    trade_date TEXT,
+    ts_code TEXT,
+    rzye REAL,        -- 融资余额(元)
+    rqye REAL,        -- 融券余额(元)
+    rzmre REAL,       -- 融资买入额(元)
+    rqyl REAL,        -- 融券余量(股)
+    rzche REAL,       -- 融资偿还额(元)
+    rqchl REAL,       -- 融券偿还量(股)
+    rqmcl REAL,       -- 融券卖出量(股)
+    rzrqye REAL,      -- 融资融券余额(元)
+    snap_ts TEXT,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_margin_detail_date ON tbl_cn_margin_detail(trade_date);
+CREATE INDEX IF NOT EXISTS idx_margin_detail_code ON tbl_cn_margin_detail(ts_code);
+
+-- 每日筹码及胜率(tushare pro.cyq_perf)
+-- 文档:https://tushare.pro/document/2?doc_id=293
+CREATE TABLE IF NOT EXISTS tbl_cn_cyq_perf (
+    trade_date TEXT,
+    ts_code TEXT,
+    his_low REAL,        -- 历史最低价
+    his_high REAL,       -- 历史最高价
+    cost_5pct REAL,      -- 5% 获利盘成本
+    cost_15pct REAL,     -- 15% 获利盘成本
+    cost_50pct REAL,     -- 50% 获利盘成本(中位成本)
+    cost_85pct REAL,     -- 85% 获利盘成本
+    cost_95pct REAL,     -- 95% 获利盘成本
+    weight_avg REAL,     -- 加权平均成本
+    winner_rate REAL,    -- 胜率(%)
+    snap_ts TEXT,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_cyq_perf_date ON tbl_cn_cyq_perf(trade_date);
+CREATE INDEX IF NOT EXISTS idx_cyq_perf_code ON tbl_cn_cyq_perf(ts_code);
+CREATE INDEX IF NOT EXISTS idx_cyq_perf_winner ON tbl_cn_cyq_perf(winner_rate);
+
+-- 每日指标(tushare pro.daily_basic)
+-- 文档:https://tushare.pro/document/2?doc_id=32
+CREATE TABLE IF NOT EXISTS tbl_cn_daily_basic (
+    trade_date TEXT,
+    ts_code TEXT,
+    close REAL,            -- 收盘价
+    turnover_rate REAL,    -- 换手率(%)
+    turnover_rate_f REAL,  -- 换手率(自由流通股)
+    volume_ratio REAL,     -- 量比
+    pe REAL,               -- 市盈率(动)
+    pe_ttm REAL,           -- 市盈率 TTM
+    pb REAL,               -- 市净率
+    ps REAL,               -- 市销率
+    ps_ttm REAL,           -- 市销率 TTM
+    dv_ratio REAL,         -- 股息率(%)
+    dv_ttm REAL,           -- 股息率 TTM
+    total_share REAL,      -- 总股本(万股)
+    float_share REAL,      -- 流通股本(万股)
+    free_share REAL,       -- 自由流通股本(万股)
+    total_mv REAL,         -- 总市值(万元)
+    circ_mv REAL,          -- 流通市值(万元)
+    snap_ts TEXT,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_basic_date ON tbl_cn_daily_basic(trade_date);
+CREATE INDEX IF NOT EXISTS idx_daily_basic_code ON tbl_cn_daily_basic(ts_code);
+"""
+
+# ========== db_cn_kpl.db 的 schema ==========
+# 包含:开盘啦涨停榜、开盘啦题材成分
+SCHEMA_SQL_KPL = """
+-- 开盘啦涨停榜
+CREATE TABLE IF NOT EXISTS tbl_cn_kpl_list (
+    ts_code TEXT NOT NULL,
+    name TEXT,
+    trade_date TEXT NOT NULL,
+    lu_time TEXT,
+    ld_time TEXT,
+    open_time TEXT,
+    last_time TEXT,
+    lu_desc TEXT,
+    tag TEXT,
+    theme TEXT,
+    net_change REAL,
+    bid_amount REAL,
+    status TEXT,
+    bid_change REAL,
+    bid_turnover REAL,
+    lu_bid_vol REAL,
+    pct_chg REAL,
+    bid_pct_chg REAL,
+    rt_pct_chg REAL,
+    limit_order REAL,
+    amount REAL,
+    turnover_rate REAL,
+    free_float REAL,
+    lu_limit_order REAL,
+    snap_ts TEXT,
+    PRIMARY KEY (ts_code, trade_date, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_kpl_date ON tbl_cn_kpl_list(trade_date);
+CREATE INDEX IF NOT EXISTS idx_kpl_tag ON tbl_cn_kpl_list(tag);
+
+-- 开盘啦题材成分
+CREATE TABLE IF NOT EXISTS tbl_cn_kpl_concept_cons (
+    ts_code TEXT NOT NULL,
+    name TEXT,
+    con_name TEXT,
+    con_code TEXT NOT NULL,
+    trade_date TEXT NOT NULL,
+    desc TEXT,
+    hot_num INTEGER,
+    snap_ts TEXT,
+    PRIMARY KEY (ts_code, con_code, trade_date)
+);
+CREATE INDEX IF NOT EXISTS idx_kplcc_date ON tbl_cn_kpl_concept_cons(trade_date);
+
+-- 涨停表现详情(实时拉取,补 tushare kpl_list 第二天早上才更新的滞后)
+CREATE TABLE IF NOT EXISTS tbl_cn_kpl_limit_performance (
+    trade_date TEXT NOT NULL,
+    ts_code TEXT NOT NULL,                    -- 带 .SH/.SZ/.BJ 后缀
+    name TEXT,
+    board_type INTEGER,                       -- PidType (1-5)
+    board_count INTEGER,                      -- 同 board_type,冗余便于查询
+    lu_time TEXT,                             -- HH:MM:SS 北京时间
+    theme TEXT,                               -- 主题材简称
+    limit_reason TEXT,                        -- 涨停原因全文(多题材)
+    is_break INTEGER,                         -- 是否曾炸开过(0/1)
+    amplitude REAL,                           -- 振幅(%)
+    turnover_rate REAL,                       -- 换手率(%)
+    limit_order REAL,                         -- 涨停封单金额(元)
+    lu_limit_order REAL,                      -- 涨停板封单金额(元)
+    net_change REAL,                          -- 净额(元)
+    main_in REAL,                             -- 主力流入(元)
+    main_out REAL,                            -- 主力流出(元)
+    amount REAL,                              -- 成交额(元)
+    free_float REAL,                          -- 流通市值(元)
+    close_price REAL,                         -- 收盘价(元)
+    pct_chg REAL,                             -- 涨幅(%)
+    board_period TEXT,                        -- "X天Y板"
+    theme_id TEXT,                            -- 主题材 ID (6位)
+    sector_id INTEGER,                        -- 板块分类 ID
+    snap_ts TEXT,                             -- 拉取时间
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_kpl_lp_date ON tbl_cn_kpl_limit_performance(trade_date);
+CREATE INDEX IF NOT EXISTS idx_kpl_lp_code ON tbl_cn_kpl_limit_performance(ts_code);
+CREATE INDEX IF NOT EXISTS idx_kpl_lp_board ON tbl_cn_kpl_limit_performance(board_count, lu_time);
+
+-- 龙虎榜每日活跃(tushare pro.top_list)
+-- 文档:https://tushare.pro/document/2?doc_id=106
+-- 实际起始:2020-12-01(必填 trade_date,不支持范围)
+CREATE TABLE IF NOT EXISTS tbl_cn_top_list (
+    trade_date     TEXT NOT NULL,    -- YYYYMMDD
+    ts_code        TEXT NOT NULL,    -- TS 代码
+    name           TEXT,             -- 名称
+    close          REAL,             -- 收盘价
+    pct_change     REAL,             -- 涨跌幅
+    turnover_rate  REAL,             -- 换手率
+    amount         REAL,             -- 总成交额
+    l_sell         REAL,             -- 卖方营业部总金额
+    l_buy          REAL,             -- 买方营业部总金额
+    l_amount       REAL,             -- 买卖总金额
+    net_amount     REAL,             -- 净额
+    net_rate       REAL,             -- 净买额占比
+    amount_rate    REAL,             -- 成交额占比
+    float_values   REAL,             -- 流通市值
+    reason         TEXT,             -- 上榜原因
+    snap_ts        TEXT,
+    PRIMARY KEY (trade_date, ts_code)
+);
+CREATE INDEX IF NOT EXISTS idx_top_list_date ON tbl_cn_top_list(trade_date);
+
+-- 龙虎榜机构买卖明细(tushare pro.top_inst)
+-- 文档:https://tushare.pro/document/2?doc_id=107
+-- 实际起始:2020-12-01
+CREATE TABLE IF NOT EXISTS tbl_cn_top_inst (
+    trade_date  TEXT NOT NULL,    -- YYYYMMDD
+    ts_code     TEXT NOT NULL,    -- TS 代码
+    exalter     TEXT NOT NULL,    -- 营业部 / 机构名称
+    buy         REAL,             -- 买入金额
+    buy_rate    REAL,             -- 买入金额占比(%)
+    sell        REAL,             -- 卖出金额
+    sell_rate   REAL,             -- 卖出金额占比(%)
+    net_buy     REAL,             -- 净额(买入 - 卖出)
+    side        TEXT NOT NULL,    -- 买卖方向(0=买,1=卖 或类似)
+    reason      TEXT,             -- 上榜原因
+    snap_ts     TEXT,
+    PRIMARY KEY (trade_date, ts_code, exalter, side)
+);
+CREATE INDEX IF NOT EXISTS idx_top_inst_date ON tbl_cn_top_inst(trade_date);
+CREATE INDEX IF NOT EXISTS idx_top_inst_code ON tbl_cn_top_inst(ts_code);
+
+-- 大宗交易(tushare pro.block_trade)
+-- 文档:https://tushare.pro/document/2?doc_id=355
+-- 实际起始:2020-12-29(单次最大 1000 行)
+CREATE TABLE IF NOT EXISTS tbl_cn_block_trade (
+    trade_date  TEXT NOT NULL,    -- YYYYMMDD
+    ts_code     TEXT NOT NULL,    -- TS 代码
+    price       REAL,             -- 成交价
+    vol         REAL,             -- 成交数量
+    amount      REAL,             -- 成交金额
+    buyer       TEXT NOT NULL,    -- 买方营业部
+    seller      TEXT NOT NULL,    -- 卖方营业部
+    snap_ts     TEXT,
+    PRIMARY KEY (trade_date, ts_code, buyer, seller)
+);
+CREATE INDEX IF NOT EXISTS idx_block_trade_date ON tbl_cn_block_trade(trade_date);
+CREATE INDEX IF NOT EXISTS idx_block_trade_code ON tbl_cn_block_trade(ts_code);
+
+-- 港股通每日成交(tushare pro.ggt_daily)
+-- 文档:https://tushare.pro/document/2?doc_id=298
+-- 实际起始:2017-01-03(港股通 2016-12-05 开通,2017-01 才有数据)
+CREATE TABLE IF NOT EXISTS tbl_cn_ggt_daily (
+    trade_date   TEXT PRIMARY KEY,    -- YYYYMMDD(每只每日只 1 行汇总)
+    buy_amount   REAL,                -- 买入成交金额(亿元)
+    buy_volume   REAL,                -- 买入成交笔数(万笔)
+    sell_amount  REAL,                -- 卖出成交金额
+    sell_volume  REAL,                -- 卖出成交笔数
+    snap_ts      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ggt_date ON tbl_cn_ggt_daily(trade_date);
+
+-- 沪深股通十大成交股(tushare pro.hsgt_top10)
+-- 文档:https://tushare.pro/document/2?doc_id=356
+-- 实际起始:2014-11-17(沪港通开通日)
+CREATE TABLE IF NOT EXISTS tbl_cn_hsgt_top10 (
+    trade_date   TEXT NOT NULL,    -- YYYYMMDD
+    ts_code      TEXT NOT NULL,    -- TS 代码
+    name         TEXT,             -- 名称
+    close        REAL,             -- 收盘价
+    change       REAL,             -- 涨跌幅
+    rank         INTEGER,          -- 排名
+    market_type  TEXT NOT NULL,    -- 市场类型(SH/SZ)
+    amount       REAL,             -- 成交金额(亿元)
+    net_amount   REAL,             -- 净成交金额(亿元)
+    buy          REAL,             -- 买入金额
+    sell         REAL,             -- 卖出金额
+    snap_ts      TEXT,
+    PRIMARY KEY (trade_date, ts_code, market_type)
+);
+CREATE INDEX IF NOT EXISTS idx_hsgt_date ON tbl_cn_hsgt_top10(trade_date);
+CREATE INDEX IF NOT EXISTS idx_hsgt_code ON tbl_cn_hsgt_top10(ts_code);
+
+-- 每日涨跌停列表(tushare pro.limit_list_d)
+-- 文档:https://tushare.pro/document/2?doc_id=298
+-- 实际起始:2020 年起(文档说法);实测更早
+-- 返回 18 列,单日 < 2500 行(涨停 U + 跌停 D + 炸板 Z)
+CREATE TABLE IF NOT EXISTS tbl_cn_limit_list (
+    trade_date      TEXT NOT NULL,    -- YYYYMMDD
+    ts_code         TEXT NOT NULL,    -- 股票代码
+    industry        TEXT,             -- 所属行业
+    name            TEXT,             -- 股票名称
+    close           REAL,             -- 收盘价
+    pct_chg         REAL,             -- 涨跌幅
+    amount          REAL,             -- 成交额
+    limit_amount    REAL,             -- 板上成交金额(跌停价总和,涨停无)
+    float_mv        REAL,             -- 流通市值
+    total_mv        REAL,             -- 总市值
+    turnover_ratio  REAL,             -- 换手率
+    fd_amount       REAL,             -- 封单金额
+    first_time      TEXT,             -- 首次封板时间
+    last_time       TEXT,             -- 最后封板时间
+    open_times      INTEGER,          -- 炸板次数(跌停为开板次数)
+    up_stat         TEXT,             -- 涨停统计(N/T)
+    limit_times     INTEGER,          -- 连板数
+    "limit"         TEXT NOT NULL,    -- D=跌停 U=涨停 Z=炸板(SQLite 保留字,需加引号)
+    snap_ts         TEXT,
+    PRIMARY KEY (trade_date, ts_code, "limit")
+);
+CREATE INDEX IF NOT EXISTS idx_limit_list_date ON tbl_cn_limit_list(trade_date);
+CREATE INDEX IF NOT EXISTS idx_limit_list_code ON tbl_cn_limit_list(ts_code);
+CREATE INDEX IF NOT EXISTS idx_limit_list_type ON tbl_cn_limit_list("limit");
+"""
+
+# ========== db_cn_news.db 的 schema ==========
+# 包含:新闻快讯、长新闻、CCTV 新闻联播、新闻源断点
+SCHEMA_SQL_NEWS = """
+-- 新闻快讯(9 源聚合)
+CREATE TABLE IF NOT EXISTS tbl_news (
+    datetime TEXT NOT NULL,
+    src TEXT NOT NULL,
+    title TEXT,
+    content TEXT,
+    channels TEXT,
+    score REAL,
+    md5 TEXT,
+    snap_ts TEXT,
+    PRIMARY KEY (datetime, src, md5)
+);
+CREATE INDEX IF NOT EXISTS idx_news_date ON tbl_news(datetime);
+CREATE INDEX IF NOT EXISTS idx_news_src ON tbl_news(src);
+
+-- 长新闻
+CREATE TABLE IF NOT EXISTS tbl_major_news (
+    datetime TEXT NOT NULL,
+    src TEXT NOT NULL,
+    title TEXT,
+    content TEXT,
+    channels TEXT,
+    score REAL,
+    md5 TEXT,
+    snap_ts TEXT,
+    PRIMARY KEY (datetime, src, md5)
+);
+CREATE INDEX IF NOT EXISTS idx_major_date ON tbl_major_news(datetime);
+CREATE INDEX IF NOT EXISTS idx_major_src ON tbl_major_news(src);
+
+-- CCTV 新闻联播
+CREATE TABLE IF NOT EXISTS tbl_cctv_news (
+    datetime TEXT NOT NULL,
+    title TEXT,
+    content TEXT,
+    src TEXT,
+    md5 TEXT,
+    snap_ts TEXT,
+    PRIMARY KEY (datetime, md5)
+);
+CREATE INDEX IF NOT EXISTS idx_cctv_date ON tbl_cctv_news(datetime);
+
+-- 新闻源断点(每个源一行)
+CREATE TABLE IF NOT EXISTS tbl_news_ctrl (
+    src TEXT PRIMARY KEY,
+    max_date TEXT,
+    updated_at TEXT
+);
+"""
+
+-- ========== db_cn_index.db 的 schema ==========
+-- 包含:指数基本信息(全市场指数清单,2026-09-15 新增)
+SCHEMA_SQL_INDEX = """
+-- 指数基本信息(全市场,~950 行)
+-- 写入方式:replace_table 全量覆盖(用户要求每次覆盖更新)
+CREATE TABLE IF NOT EXISTS tbl_cn_index_basic (
+    ts_code TEXT PRIMARY KEY,        -- TS 代码(如 000001.SH / 801010.SI)
+    name TEXT,                       -- 简称(如 '上证指数' / '农林牧渔')
+    market TEXT,                     -- 市场(SW / CSI / MSCI / SSE / SZSE 等)
+    publisher TEXT,                  -- 发布方(如 '上海申银万国证券研究所')
+    category TEXT,                   -- 类别(如 '一级行业指数' / '规模指数')
+    base_date TEXT,                  -- 基期(YYYYMMDD)
+    base_point REAL,                 -- 基点
+    list_date TEXT,                  -- 上市日期
+    snap_ts TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_index_market ON tbl_cn_index_basic(market);
+"""
+
+# 兼容旧代码(SCHEMA_SQL 是 basic schema,db.py init_db 默认建这个)
+SCHEMA_SQL = SCHEMA_SQL_BASIC
+

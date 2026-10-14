@@ -1,0 +1,10 @@
+{
+  "version": "theme-analysis-exclusions-v1",
+  "exclude_level1_names": [
+    "ST与次新"
+  ],
+  "exclude_theme_names": [],
+  "reasons": {
+    "ST与次新": "策略研究范围不参与ST板块、ST摘帽和次新股"
+  }
+}

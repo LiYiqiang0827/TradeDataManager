@@ -1,0 +1,65 @@
+{
+  "provider": "qwen-vllm",
+  "cases": 2,
+  "valid_json_cases": 2,
+  "exact_field_accuracy": 1.0,
+  "results": [
+    {
+      "case_id": "seed-002918",
+      "provider": "qwen-vllm",
+      "elapsed_seconds": 2.407,
+      "matches": {
+        "market_role": true,
+        "business_relation": true,
+        "commercial_stage": true,
+        "industrial_core": true
+      },
+      "output": {
+        "market_role": "height_core",
+        "business_relation": "equity_investment",
+        "commercial_stage": "sample_testing",
+        "industrial_core": false,
+        "conclusion": "5连板确立芯片题材高度核心地位。但主营建筑陶瓷，仅参股陶瓷基板且处送样阶段，无收入订单，非产业核心。",
+        "positive_evidence_ids": [
+          "E1",
+          "E3"
+        ],
+        "negative_evidence_ids": [
+          "E2",
+          "E4"
+        ],
+        "confidence": 0.95,
+        "needs_review": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "seed-000417",
+      "provider": "qwen-vllm",
+      "elapsed_seconds": 2.764,
+      "matches": {
+        "market_role": true,
+        "business_relation": true,
+        "commercial_stage": true,
+        "industrial_core": true
+      },
+      "output": {
+        "market_role": "height_core",
+        "business_relation": "indirect_fund",
+        "commercial_stage": "none",
+        "industrial_core": false,
+        "conclusion": "3连板为题材最高标，属情绪龙头。公司否认主营及业务往来，仅通过基金间接投资，无直接产业受益证据。",
+        "positive_evidence_ids": [
+          "E1",
+          "E3"
+        ],
+        "negative_evidence_ids": [
+          "E2"
+        ],
+        "confidence": 0.95,
+        "needs_review": false
+      },
+      "error": null
+    }
+  ]
+}
