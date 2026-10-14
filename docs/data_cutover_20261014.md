@@ -2,7 +2,7 @@
 
 ## Preflight snapshot
 
-Local host only. The Mac mini is out of scope and was not contacted or changed.
+The Mac mini was inspected read-only over SSH during inventory; it was not operated during migration or repair.
 
 Loaded local launchd labels at preflight:
 

@@ -11,7 +11,7 @@
 - 研究保留原内部结构：`policyStudy`的主体实体在`MrLi/policyStudy`，`plot`在`MrLi/plot`；MrWu的market_review实体在`MrWu/policyStudy/policy/market_review`，明确MrWu研究包按来源归档。旧位置为兼容入口，减少对研究相对路径的破坏。
 - 题材图数据库的催化处理包唯一实体在`TradingDataManager/theme_graph`，事实库在`TradingDatabase/offline`。研究层保留统一provider查询。
 
-当前状态：盘点、研究归档、数据代码路径改造、数据库迁移及限定范围独立验收已完成；正在收尾代码唯一实体、安装说明和永久档案。研究迁移记录165个用户文件，零缺失；73处研究根层级变更有前后哈希和diff。
+当前状态（2026-10-15收尾）：本轮目录整理、数据代码唯一实体、数据库迁移、技能路径、安装说明、永久档案及限定范围独立验收已完成。研究迁移记录165个用户文件，零缺失；73处研究根层级变更有前后哈希和diff。发现的既有内容缺陷另列下一修复批次，不以本轮搬迁掩盖。
 
 阶段性数据证据（尚非最终验收）：日线/daily_basic/adj_factor对照2018年以来2128个SSE开市日均有覆盖；1分钟428个分区缺少20260922，文件时间精度在CSV→TDX切点不同需验证兼容；15分钟509日日志有覆盖，最近三日少11:30的36个股票日均对应全日停牌。在线minute在10/13、10/14样本中已确认跨日污染，是迁移前内容问题，另派agent定位来源和提出最小修复，不用搬迁掩盖问题。
 
@@ -25,6 +25,10 @@
 4. 新增当日minute落库时间校验，阻止Redis前日bar进入新分区。复现、混合日期和后续正确bar的隔离测试通过。
 5. online scheduler保留Popen所有权，清理失败不启动替代进程，启动残留按module/cwd/进程身份核验，退出/异常等待原进程组释放；watchlist由同一受管进程跟踪。macOS进程表字段经过本机验证。offline恢复时`--skip-startup-update`仅恢复定时循环，避免启动即整链重跑。
 6. 本机offline、online scheduler和Redis已恢复，当前收盘阶段没有service worker。说明：恢复/隔离测试不等于下一交易日全链路已实际采集验收。
+
+代码与配置最终边界：TradingDataManager有独立本地Git与editable安装/49接口CLI；主仓旧coreClient、offlineDataManager、onlineDataManager、scripts均指向它的唯一实现。两个数据维护skill正式源在TDM/skills，研究skill正式源在MrLi。原始代码、私有配置、原plist受保护回退归档在`~/.local/share/TradingDataManager/migrations/20261014/`，不入Git。数据工具的新闻/题材分析缓存继续读取MrLi/outputs的已有成果。
+
+所有物理SQLite/DuckDB已在TradingDatabase；26.5MB旧研究DuckDB快照也已迁入offline/research_snapshots并验证SHA。MrLi/outputs内1440个冻结研究输入/结果Parquet保留为实验材料，已生成路径/尺寸/SHA清单；它们不属于get_oneMin读取的正式分区，也不进入服务的增量写入。此边界不把研究结果误当数据库，更不修改冻结预测素材。
 
 仍需单独处理的源数据质量事项：20260922一分钟分区缺失；在线10/13与10/14的历史错日行尚未修复；auction turnover空值的上游契约待确认。CSV→TDX的us/ns时间精度切点已通过跨日统一API验证；静态题材成员预留空表和自然日复权因子常数记录不能仅因形式不同就判错。
 

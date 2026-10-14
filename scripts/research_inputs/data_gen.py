@@ -235,7 +235,7 @@ def filter_watchlist_by_delist(
 # 路径
 # ============================================================================
 SCRIPT_DIR = Path(__file__).parent.resolve()
-WATCHLIST_DIR = RESEARCH_ROOT / "policy" / "题材涨停研究" / "watchlist"
+WATCHLIST_DIR = RESEARCH_ROOT / "policyStudy" / "policy" / "题材涨停研究" / "watchlist"
 # 注:policy db 物理文件位于 ~/TradingAgent/offlineDataManager/data/(2026-09-17 搬到此处),
 # schema 由 core.offline_db_client.ensure_schema() 自行管理(运行时建表),本脚本不再直接写 DB 路径
 
