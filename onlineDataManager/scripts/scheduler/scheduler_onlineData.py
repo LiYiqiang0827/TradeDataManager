@@ -579,29 +579,27 @@ def _online_service_modules() -> set[str]:
     return names
 
 
-def _read_process_table() -> dict[int, tuple[int, int, str, str]] | None:
-    """读取 PID、PGID、SID、启动时刻和命令行；lsof 再确认 cwd。"""
+def _read_process_table() -> dict[int, tuple[int, str, str]] | None:
+    """读取 PID、PGID、启动时刻和命令行；lsof 再确认 cwd。"""
     try:
         result = subprocess.run(
-            ["ps", "-axo", "pid=,pgid=,sid=,lstart=,command="],
+            ["ps", "-axo", "pid=,pgid=,lstart=,command="],
             capture_output=True, text=True, check=False,
         )
     except OSError as e:
         logging.getLogger("scheduler_onlineData").error("读取进程表失败: %s", e)
         return None
-    rows: dict[int, tuple[int, int, str, str]] = {}
+    rows: dict[int, tuple[int, str, str]] = {}
     if result.returncode != 0:
         log = logging.getLogger("scheduler_onlineData")
         log.error("读取进程表失败，无法确认启动残留: %s", result.stderr.strip())
         return None
     for line in result.stdout.splitlines():
-        fields = line.strip().split(None, 8)
-        if len(fields) != 9:
+        fields = line.strip().split(None, 7)
+        if len(fields) != 8:
             continue
         try:
-            rows[int(fields[0])] = (
-                int(fields[1]), int(fields[2]), " ".join(fields[3:8]), fields[8]
-            )
+            rows[int(fields[0])] = (int(fields[1]), " ".join(fields[2:7]), fields[7])
         except ValueError:
             continue
     return rows
@@ -644,8 +642,8 @@ def kill_all_daemons(log: logging.Logger) -> bool:
         return False
 
     candidates = []
-    for pid, (pgid, sid, started_at, command) in process_table.items():
-        if pid in {os.getpid(), os.getppid()} or pgid != pid or sid != pid:
+    for pid, (pgid, started_at, command) in process_table.items():
+        if pid in {os.getpid(), os.getppid()} or pgid != pid:
             continue
         module = _module_from_command(command)
         if module not in allowed:
@@ -656,17 +654,17 @@ def kill_all_daemons(log: logging.Logger) -> bool:
             return False
         if cwd != project_cwd:
             continue
-        candidates.append((pid, pgid, sid, started_at, command, module))
+        candidates.append((pid, pgid, started_at, command, module))
 
     cleaned = []
-    for pid, pgid, sid, started_at, command, module in candidates:
-        # TERM 前重核 PID/PGID/SID/启动时刻/命令/cwd，避免对复用 PID 发信号。
+    for pid, pgid, started_at, command, module in candidates:
+        # TERM 前重核 PID/PGID/启动时刻/命令/cwd，避免对复用 PID 发信号。
         current_table = _read_process_table()
         if current_table is None:
             log.error("启动清理复核进程表失败，fail closed")
             return False
         current = current_table.get(pid)
-        identity = (pgid, sid, started_at, command)
+        identity = (pgid, started_at, command)
         if current is None or current != identity:
             cleaned.append(pid)  # 原进程退出或数值 PID 已复用，绝不信号当前进程。
             continue
@@ -695,9 +693,9 @@ def kill_all_daemons(log: logging.Logger) -> bool:
             if table_after_term is None:
                 log.error("TERM 后无法读取进程表确认 %s 的 PGID=%s，fail closed", module, pgid)
                 break
-            # SID 让 PGID 复用时的新进程组不会被误认成原服务组。
-            last_members = [member_pid for member_pid, (member_pgid, member_sid, *_)
-                            in table_after_term.items() if member_pgid == pgid and member_sid == sid]
+            # 不再向该数值 PGID 发信号；若它被复用，此处只会保守判定未确认。
+            last_members = [member_pid for member_pid, (member_pgid, *_)
+                            in table_after_term.items() if member_pgid == pgid]
             if not last_members:
                 cleaned.append(pid)
                 exited = True

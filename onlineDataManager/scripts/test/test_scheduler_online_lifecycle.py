@@ -104,12 +104,12 @@ class SchedulerLifecycleTests(unittest.TestCase):
         pid_reused = 81232
         exact = "python -u -m service.service_writeredis_minute"
         old_table = {
-            pid_other_checkout: (pid_other_checkout, pid_other_checkout, "Tue Oct 14 23:00:00 2026", exact),
-            pid_reused: (pid_reused, pid_reused, "Tue Oct 14 23:00:01 2026", exact),
+            pid_other_checkout: (pid_other_checkout, "Tue Oct 14 23:00:00 2026", exact),
+            pid_reused: (pid_reused, "Tue Oct 14 23:00:01 2026", exact),
         }
         # Before signal, reused PID now has a different command; other checkout is
         # rejected by cwd. Neither process may receive a signal.
-        tables = [old_table, {pid_reused: (pid_reused, pid_reused, "Tue Oct 14 23:00:02 2026", "python -m unrelated.worker")}]
+        tables = [old_table, {pid_reused: (pid_reused, "Tue Oct 14 23:00:02 2026", "python -m unrelated.worker")}]
         calls = []
         with mock.patch.object(scheduler, "_read_process_table", side_effect=tables.pop), \
              mock.patch.object(scheduler, "_process_cwd", side_effect=lambda pid: "/other/checkout" if pid == pid_other_checkout else str(scheduler.SCRIPTS_DIR.resolve())), \
@@ -120,7 +120,7 @@ class SchedulerLifecycleTests(unittest.TestCase):
     def test_startup_timeout_fails_closed_before_watchlist_or_phase_work(self):
         pid = 81235
         command = "python -u -m service.service_writeredis_minute"
-        table = {pid: (pid, pid, "Tue Oct 14 23:00:03 2026", command)}
+        table = {pid: (pid, "Tue Oct 14 23:00:03 2026", command)}
         # The same process-group member remains visible throughout the wait.
         with mock.patch.object(scheduler, "_read_process_table", side_effect=[table] * 7), \
              mock.patch.object(scheduler, "_process_cwd", return_value=str(scheduler.SCRIPTS_DIR.resolve())), \
@@ -145,7 +145,7 @@ class SchedulerLifecycleTests(unittest.TestCase):
             killpg.assert_not_called()
 
         pid = 81237
-        table = {pid: (pid, pid, "Tue Oct 14 23:00:04 2026", "python -m service.service_writeredis_minute")}
+        table = {pid: (pid, "Tue Oct 14 23:00:04 2026", "python -m service.service_writeredis_minute")}
         with mock.patch.object(scheduler, "_read_process_table", return_value=table), \
              mock.patch.object(scheduler, "_process_cwd", return_value=None), \
              mock.patch.object(scheduler.os, "killpg") as killpg:
@@ -156,8 +156,8 @@ class SchedulerLifecycleTests(unittest.TestCase):
         leader = 81238
         child = 81239
         command = "python -m service.service_writeredis_minute"
-        leader_row = (leader, leader, "Tue Oct 14 23:00:05 2026", command)
-        member_row = (leader, leader, "Tue Oct 14 23:00:06 2026", "python -c child-worker")
+        leader_row = (leader, "Tue Oct 14 23:00:05 2026", command)
+        member_row = (leader, "Tue Oct 14 23:00:06 2026", "python -c child-worker")
         with mock.patch.object(scheduler, "_read_process_table", side_effect=[
             {leader: leader_row}, {leader: leader_row}, {child: member_row}
         ]), mock.patch.object(scheduler, "_process_cwd", return_value=str(scheduler.SCRIPTS_DIR.resolve())), \
