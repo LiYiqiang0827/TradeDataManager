@@ -35,9 +35,11 @@ onlineDataManager 顶层调度器(2026-09-11 重构后,MyATM 多 service 模式)
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import logging
 import os
 import signal
+import shlex
 import subprocess
 import sys
 import time
@@ -205,7 +207,7 @@ SAVEDATA_DAEMONS_MORNING_AFTERNOON: list[dict] = [
     {"name": "service_savedata_snapshot_index", "args": []},
 ]
 
-# 全部 trade daemon(用于 kill 时全 kill)— 不含 watchlist/auction(它们有独立生命周期)
+# writer/savedata daemon；watchlist 在 phase 之间保留，到 closed/weekend 或 scheduler 退出时清理
 # v6.15:不含 orderbook(已停止抓取)
 ALL_TRADE_DAEMONS: list[dict] = (
     WRITER_DAEMONS_MORNING_AFTERNOON
@@ -391,7 +393,7 @@ def spawn_service(name: str, args: list[str], *, log: logging.Logger, timeout_se
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,  # 独立进程组,方便 kill
             )
-            _DAEMON_PIDS[name] = proc.pid  # 记下 PID,phase 切换时杀
+            _register_daemon(name, proc)
             log.info(f"{name} daemon 启动 pid={proc.pid}")
             return 0
         except Exception as e:
@@ -399,42 +401,109 @@ def spawn_service(name: str, args: list[str], *, log: logging.Logger, timeout_se
             return 1
 
 
-# 子进程 PID 表(name → pid),phase 切换时清理
-_DAEMON_PIDS: dict[str, int] = {}
+@dataclass
+class _OwnedDaemon:
+    """持有 Popen 身份和独立进程组，避免仅凭可复用的 PID 发信号。"""
+
+    proc: subprocess.Popen
+    pid: int
+    pgid: int
 
 
-def kill_daemon(name: str, log: logging.Logger) -> None:
-    """杀掉某个 service 的旧 daemon 进程(如有)"""
-    pid = _DAEMON_PIDS.get(name)
-    if not pid:
-        return
+_DAEMON_PIDS: dict[str, _OwnedDaemon] = {}
+_DAEMON_STOP_TIMEOUT_SEC = 5.0
+_DAEMON_KILL_TIMEOUT_SEC = 2.0
+
+
+def _register_daemon(name: str, proc: subprocess.Popen) -> None:
+    """登记所有权。daemon 必须以 start_new_session=True 启动。"""
+    _DAEMON_PIDS[name] = _OwnedDaemon(proc=proc, pid=proc.pid, pgid=proc.pid)
+
+
+def _send_owned_group_signal(owned: _OwnedDaemon, sig: int) -> bool:
+    """只在 Popen 仍确认其子进程存活且仍是原进程组 leader 时发信号。"""
+    if owned.proc.pid != owned.pid or owned.proc.poll() is not None:
+        return False
     try:
-        import signal as _sig
-        os.killpg(os.getpgid(pid), _sig.SIGTERM)
-        log.info(f"kill daemon {name} pid={pid}")
+        if os.getpgid(owned.pid) != owned.pgid:
+            return False
+        os.killpg(owned.pgid, sig)
+        return True
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return False
+
+
+def kill_daemon(
+    name: str,
+    log: logging.Logger,
+    *,
+    timeout_sec: float = _DAEMON_STOP_TIMEOUT_SEC,
+    kill_timeout_sec: float = _DAEMON_KILL_TIMEOUT_SEC,
+) -> bool:
+    """优雅停止已登记 daemon，超时后升级 SIGKILL，并确认直接子进程退出。"""
+    owned = _DAEMON_PIDS.get(name)
+    if owned is None:
+        return True
+
+    if owned.proc.poll() is None:
+        _send_owned_group_signal(owned, signal.SIGTERM)
+    try:
+        owned.proc.wait(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        log.warning(f"停止 {name} pid={owned.pid} 超时 ({timeout_sec:g}s)，升级 SIGKILL")
+        if owned.proc.poll() is None:
+            _send_owned_group_signal(owned, signal.SIGKILL)
+        try:
+            owned.proc.wait(timeout=kill_timeout_sec)
+        except subprocess.TimeoutExpired:
+            log.error(f"停止 {name} pid={owned.pid} 仍超时 ({kill_timeout_sec:g}s)，保留所有权记录")
+            return False
+    except Exception as e:
+        log.error(f"等待 {name} pid={owned.pid} 退出失败: {e}", exc_info=True)
+        return False
+
+    if owned.proc.poll() is None:
+        log.error(f"{name} pid={owned.pid} wait 返回但进程仍存活，保留所有权记录")
+        return False
+    try:
+        os.killpg(owned.pgid, 0)
     except ProcessLookupError:
         pass
-    except Exception as e:
-        log.warning(f"kill {name} pid={pid} 失败: {e}")
-    _DAEMON_PIDS.pop(name, None)
+    except OSError as e:
+        log.error(f"{name} pid={owned.pid} 无法确认进程组退出: {e}，保留所有权记录")
+        return False
+    else:
+        # leader 已由 Popen wait 回收，不能再按数值 PGID 发信号，以免 PID/PGID 复用。
+        log.error(f"{name} pid={owned.pid} 已退出但进程组 {owned.pgid} 仍存在；不对未验证的 PGID 发信号")
+        return False
+    if _DAEMON_PIDS.get(name) is owned:
+        _DAEMON_PIDS.pop(name, None)
+    log.info(f"daemon 已退出 {name} pid={owned.pid}")
+    return True
 
 
-def kill_all_trade_daemons(log: logging.Logger) -> None:
+def kill_all_trade_daemons(log: logging.Logger) -> bool:
     """杀掉所有 writeredis/savedata 类别下的 daemon(写入 + 落盘全 kill)
 
     2026-09-11 v3:不再区分 trade_loop 阶段,统一按"在跑 daemon 全部 kill"
     用于 closed / 周末 / 异常退出 时全清理
     """
-    killed = []
+    stopped = []
+    failed = []
     for name in list(_DAEMON_PIDS.keys()):
-        # kill 所有当前在跑的 daemon
+        # watchlist 也由同一 scheduler 启动，必须在 shutdown 时收回。
         if name.startswith("service_writeredis_") or name.startswith("service_savedata_"):
-            kill_daemon(name, log)
-            killed.append(name)
-    if killed:
-        log.info(f"kill_all_trade_daemons: 关闭 {len(killed)} 个 daemon")
+            (stopped if kill_daemon(name, log) else failed).append(name)
+    if failed:
+        log.error(f"kill_all_trade_daemons: 已确认退出 {len(stopped)} 个 daemon，未确认 {failed}")
+        return False
+    if stopped:
+        log.info(f"kill_all_trade_daemons: 已确认退出 {len(stopped)} 个 daemon")
     else:
-        log.debug(f"kill_all_trade_daemons: 无 daemon 在跑")
+        log.debug("kill_all_trade_daemons: 无 daemon 在跑")
+    return True
 
 
 def run_phase_services(
@@ -443,40 +512,43 @@ def run_phase_services(
     pid_scope: str,
     log: logging.Logger,
 ) -> int:
-    """跑某个 phase 的所有 service(写入或落盘独立调度)
-
-    Args:
-        phase: 当前 phase 名
-        phase_services: WRITER_PHASE_SERVICES 或 SAVEDATA_PHASE_SERVICES
-        pid_scope: "writer" 或 "savedata",只清理同 scope 的 daemon
-        log: logger
-    """
+    """停止旧 daemon 并启动新 phase；旧进程未确认退出时不启动替代进程。"""
     services = phase_services.get(phase, [])
+    new_names = {svc["name"] for svc in services}
+    failed_stops = []
 
+    for old_name in list(_DAEMON_PIDS.keys()):
+        if old_name in new_names:
+            continue
+        if pid_scope == "writer" and old_name.startswith("service_writeredis_"):
+            if old_name == "service_writeredis_watchlist" and phase not in {"closed", "weekend"}:
+                continue
+            if not kill_daemon(old_name, log):
+                failed_stops.append(old_name)
+        elif pid_scope == "savedata" and old_name.startswith("service_savedata_"):
+            if not kill_daemon(old_name, log):
+                failed_stops.append(old_name)
+
+    # A same-name phase replacement must also wait for the previous Popen to exit.
+    for svc in services:
+        name = svc["name"]
+        if name in _DAEMON_PIDS and not kill_daemon(name, log):
+            failed_stops.append(name)
+
+    if failed_stops:
+        log.error("[%s] phase=%s 停止旧 daemon 未确认退出，不启动新服务: %s", pid_scope, phase, failed_stops)
+        return 1
     if not services:
         log.debug(f"[{pid_scope}] phase={phase} 无 service 需要执行")
         return 0
 
-    # 先清理同 scope 内不在新列表的 daemon
-    new_names = {svc["name"] for svc in services}
-    for old_name in list(_DAEMON_PIDS.keys()):
-        if old_name not in new_names:
-            # 只清理同 scope(同 prefix)
-            if pid_scope == "writer" and old_name.startswith("service_writeredis_"):
-                kill_daemon(old_name, log)
-            elif pid_scope == "savedata" and old_name.startswith("service_savedata_"):
-                kill_daemon(old_name, log)
-
     log.info(f"[{pid_scope}] phase={phase} 启动 {len(services)} 个 service")
     max_rc = 0
     for svc in services:
-        name = svc["name"]
-        if name in _DAEMON_PIDS:
-            kill_daemon(name, log)
-        rc = spawn_service(name, svc["args"], log=log)
+        rc = spawn_service(svc["name"], svc["args"], log=log)
         max_rc = max(max_rc, abs(rc))
         if rc != 0:
-            log.warning(f"{name} 失败,但继续下一个")
+            log.warning(f"{svc['name']} 失败,但继续下一个")
 
     return max_rc
 
@@ -496,31 +568,147 @@ def signal_handler(signum, frame):
     _should_exit = True
 
 
-def kill_all_daemons(log: logging.Logger) -> None:
-    """启动时清理:杀掉所有 service_* 子进程(防止上轮残留)"""
-    import signal as _sig
+def _online_service_modules() -> set[str]:
+    """启动清理只接受调度器明确启动的在线 writer/savedata 模块名。"""
+    names = {f"service.{item['name']}" for item in WRITER_DAEMONS_MORNING_AFTERNOON}
+    names.update(f"service.{item['name']}" for item in SAVEDATA_DAEMONS_MORNING_AFTERNOON)
+    names.update({
+        "service.service_writeredis_watchlist", "service.service_writeredis_auction",
+        "service.service_savedata_watchlist", "service.service_savedata_auction",
+    })
+    return names
 
-    # 用 pgrep 找 service.service_* 的 PID(简单可靠,不依赖 psutil)
-    import subprocess
-    result = subprocess.run(
-        ["pgrep", "-f", "service.service_"],
-        capture_output=True, text=True,
-    )
-    killed = []
-    for pid_str in result.stdout.strip().split():
+
+def _read_process_table() -> dict[int, tuple[int, int, str, str]] | None:
+    """读取 PID、PGID、SID、启动时刻和命令行；lsof 再确认 cwd。"""
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,pgid=,sid=,lstart=,command="],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError as e:
+        logging.getLogger("scheduler_onlineData").error("读取进程表失败: %s", e)
+        return None
+    rows: dict[int, tuple[int, int, str, str]] = {}
+    if result.returncode != 0:
+        log = logging.getLogger("scheduler_onlineData")
+        log.error("读取进程表失败，无法确认启动残留: %s", result.stderr.strip())
+        return None
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(None, 8)
+        if len(fields) != 9:
+            continue
         try:
-            pid = int(pid_str)
-            # 排除自己(scheduler)和它的父进程
-            if pid == os.getpid():
-                continue
-            os.kill(pid, _sig.SIGTERM)
-            killed.append(pid)
-        except (ProcessLookupError, ValueError, PermissionError):
+            rows[int(fields[0])] = (
+                int(fields[1]), int(fields[2]), " ".join(fields[3:8]), fields[8]
+            )
+        except ValueError:
+            continue
+    return rows
+
+
+def _process_cwd(pid: int) -> str | None:
+    try:
+        result = subprocess.run(
+            ["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        if line.startswith("n"):
+            return line[1:]
+    return None
+
+
+def _module_from_command(command: str) -> str | None:
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return None
+    for index, arg in enumerate(argv[:-1]):
+        if arg == "-m":
+            return argv[index + 1]
+    return None
+
+
+def kill_all_daemons(log: logging.Logger) -> bool:
+    """清理本 checkout 的精确在线残留；检查失败或未确认进程组退出均 fail closed。"""
+    project_cwd = str(SCRIPTS_DIR.resolve())
+    allowed = _online_service_modules()
+    process_table = _read_process_table()
+    if process_table is None:
+        log.error("启动清理无法读取进程表，fail closed")
+        return False
+
+    candidates = []
+    for pid, (pgid, sid, started_at, command) in process_table.items():
+        if pid in {os.getpid(), os.getppid()} or pgid != pid or sid != pid:
+            continue
+        module = _module_from_command(command)
+        if module not in allowed:
+            continue
+        cwd = _process_cwd(pid)
+        if cwd is None:
+            log.error("无法验证候选残留 %s pid=%s 的 cwd，fail closed", module, pid)
+            return False
+        if cwd != project_cwd:
+            continue
+        candidates.append((pid, pgid, sid, started_at, command, module))
+
+    cleaned = []
+    for pid, pgid, sid, started_at, command, module in candidates:
+        # TERM 前重核 PID/PGID/SID/启动时刻/命令/cwd，避免对复用 PID 发信号。
+        current_table = _read_process_table()
+        if current_table is None:
+            log.error("启动清理复核进程表失败，fail closed")
+            return False
+        current = current_table.get(pid)
+        identity = (pgid, sid, started_at, command)
+        if current is None or current != identity:
+            cleaned.append(pid)  # 原进程退出或数值 PID 已复用，绝不信号当前进程。
+            continue
+        cwd = _process_cwd(pid)
+        if cwd is None:
+            log.error("无法复核候选残留 %s pid=%s 的 cwd，fail closed", module, pid)
+            return False
+        if cwd != project_cwd:
+            log.error("候选残留 %s pid=%s 已不在本项目 cwd，fail closed", module, pid)
+            return False
+
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            cleaned.append(pid)
+            continue
+        except OSError as e:
+            log.error("启动清理无法停止 %s pid=%s: %s", module, pid, e)
             continue
 
-    if killed:
-        log.info(f"启动清理:kill 掉 {len(killed)} 个残留 service 进程 {killed}")
-        time.sleep(2)  # 等它们退出
+        deadline = time.monotonic() + _DAEMON_STOP_TIMEOUT_SEC
+        exited = False
+        last_members: list[int] = []
+        while time.monotonic() < deadline:
+            table_after_term = _read_process_table()
+            if table_after_term is None:
+                log.error("TERM 后无法读取进程表确认 %s 的 PGID=%s，fail closed", module, pgid)
+                break
+            # SID 让 PGID 复用时的新进程组不会被误认成原服务组。
+            last_members = [member_pid for member_pid, (member_pgid, member_sid, *_)
+                            in table_after_term.items() if member_pgid == pgid and member_sid == sid]
+            if not last_members:
+                cleaned.append(pid)
+                exited = True
+                break
+            time.sleep(0.1)
+        if not exited:
+            log.error("启动残留 %s pid=%s 的进程组仍未确认退出，剩余成员=%s", module, pid, last_members[:8])
+
+    if cleaned:
+        log.info("启动清理:已确认退出 %d 个本项目在线残留进程组", len(cleaned))
+    return len(cleaned) == len(candidates)
 
 
 def _reload_watchlist_if_in_trade_window(log: logging.Logger) -> None:
@@ -536,12 +724,8 @@ def _reload_watchlist_if_in_trade_window(log: logging.Logger) -> None:
     实现:
       - 当前时间在 [09:10, 15:30] 内 → subprocess.Popen 启 watchlist daemon
       - watchlist daemon 内部先写一次 Redis,再 idle sleep,15:35 阶段切换时被 kill
-      - 不登记到 _DAEMON_PIDS:盘中重启时 _DAEMON_PIDS 字典是新的,不需要清理;
-        watchlist 进程由 _DAEMON_PIDS["service_writeredis_watchlist"](watchlist 阶段时)
-        或 _phase_service_kill_at_closed()(15:35 阶段切换时)统一清理
+      - 使用统一 spawn_service 登记 Popen 和独立进程组；phase 切换或 scheduler finally 清理
     """
-    import subprocess
-
     now = datetime.now()
     hh, mm = now.hour, now.minute
     t = hh * 60 + mm
@@ -558,25 +742,14 @@ def _reload_watchlist_if_in_trade_window(log: logging.Logger) -> None:
 
     log.info(f"[{now.strftime('%H:%M:%S')}] 交易窗口内启动,补一次 watchlist service")
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "service.service_writeredis_watchlist",
-    ]
-
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,  # 不阻塞 scheduler 启动,日志由 service 自己写
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,      # 独立进程组,不跟 scheduler 一起退出
-        )
-        log.info(f"watchlist service 已启动 PID={proc.pid},写完 Redis 后会 idle sleep")
-    except Exception as e:
-        log.error(f"补写 watchlist 失败: {e}", exc_info=True)
+    rc = spawn_service("service_writeredis_watchlist", [], log=log)
+    if rc == 0:
+        log.info("watchlist service 已登记到 scheduler 所有权表")
+    else:
+        log.error("补写 watchlist 失败 rc=%s", rc)
 
 
-def run_scheduler_loop(*, log: logging.Logger, scan_interval_sec: float = 60.0, dry_run: bool = False) -> None:
+def _run_scheduler_loop_body(*, log: logging.Logger, scan_interval_sec: float = 60.0, dry_run: bool = False) -> bool:
     """主循环:每分钟扫描一次阶段,阶段变化时触发 spawn
 
     2026-09-11 v3:writer_phase + savedata_phase 双阶段独立跟踪
@@ -587,8 +760,10 @@ def run_scheduler_loop(*, log: logging.Logger, scan_interval_sec: float = 60.0, 
 
     log.info(f"scheduler_onlineData 启动 dry_run={dry_run} scan_interval={scan_interval_sec}s")
 
-    # 2026-09-11:启动时清理残留 daemon 进程
-    kill_all_daemons(log)
+    # 2026-09-11:启动时清理残留 daemon 进程；若退出未确认，不启动新服务。
+    if not kill_all_daemons(log):
+        log.error("启动残留清理未完成，fail closed：本轮不补 watchlist，也不启动 phase 服务")
+        return False
 
     # 2026-09-11:交易时间段内每次重启都补一次 watchlist
     # (盘前 watchlist 阶段结束后,该 service 就 idle sleep 等待被杀;
@@ -619,12 +794,20 @@ def run_scheduler_loop(*, log: logging.Logger, scan_interval_sec: float = 60.0, 
             if not dry_run:
                 # 写入侧阶段变化
                 if writer_phase != last_writer_phase:
-                    run_phase_services(writer_phase, WRITER_PHASE_SERVICES, "writer", log)
+                    if run_phase_services(writer_phase, WRITER_PHASE_SERVICES, "writer", log) != 0:
+                        log.critical("writer phase 服务切换未完成，停止 scheduler")
+                        return False
                     last_writer_phase = writer_phase
                 # 落盘侧阶段变化
                 if savedata_phase != last_savedata_phase:
-                    run_phase_services(savedata_phase, SAVEDATA_PHASE_SERVICES, "savedata", log)
+                    if run_phase_services(savedata_phase, SAVEDATA_PHASE_SERVICES, "savedata", log) != 0:
+                        log.critical("savedata phase 服务切换未完成，停止 scheduler")
+                        return False
                     last_savedata_phase = savedata_phase
+                if savedata_phase in {"closed", "weekend"}:
+                    if not kill_daemon("service_writeredis_watchlist", log):
+                        log.critical("收盘时 watchlist daemon 未确认退出，停止 scheduler")
+                        return False
 
                 if r:
                     r.set_meta("scheduler_writer_phase", writer_phase)
@@ -638,6 +821,19 @@ def run_scheduler_loop(*, log: logging.Logger, scan_interval_sec: float = 60.0, 
         time.sleep(scan_interval_sec)
 
     log.info("收到退出信号,scheduler 退出")
+    return True
+
+
+def run_scheduler_loop(*, log: logging.Logger, scan_interval_sec: float = 60.0, dry_run: bool = False) -> bool:
+    """运行原有时段循环；返回 False 表示 phase 或进程清理未确认完成。"""
+    try:
+        body_ok = _run_scheduler_loop_body(log=log, scan_interval_sec=scan_interval_sec, dry_run=dry_run)
+    except BaseException:
+        if not kill_all_trade_daemons(log):
+            log.critical("scheduler 异常退出时仍有自建进程未确认退出")
+        raise
+    cleanup_ok = kill_all_trade_daemons(log)
+    return bool(body_ok) and cleanup_ok
 
 
 def main() -> int:
@@ -677,7 +873,8 @@ def main() -> int:
         return 0
 
     try:
-        run_scheduler_loop(log=log, scan_interval_sec=args.scan_interval, dry_run=False)
+        if not run_scheduler_loop(log=log, scan_interval_sec=args.scan_interval, dry_run=False):
+            return 1
     except KeyboardInterrupt:
         log.info("收到 KeyboardInterrupt, 正常退出")
         return 0
