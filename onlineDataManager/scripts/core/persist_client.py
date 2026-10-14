@@ -423,23 +423,48 @@ def persist_minute(
         logger.debug("[minute] 没有 minute:* ZSET,跳过")
         return 0
 
-    # 把所有 ZSET 里的 bars 展开成 snapshots(每根 K 线 1 个 snapshot)
+    # Redis minute ZSET 跨日保留 24h，writer 按股票逐一刷新；savedata 首轮可能
+    # 先读到尚未刷新的前一交易日 payload。落盘前验证 bar 日期，防止旧 bar 占用
+    # 当日 (ts_code, trade_date, time_idx) 唯一键，导致后续正确 bar 被 INSERT OR IGNORE。
+    expected_date = datetime.strptime(trade_date, "%Y%m%d").date().isoformat()
     snapshots = []
+    date_mismatch_counts: dict[str, int] = {}
     for ts_code in watchlist:
         bars = redis_client.get_minute_bars(ts_code)
         if not bars:
             continue
         for i, b in enumerate(bars):
+            bar_datetime = b.get("datetime") or b.get("bar_time") or b.get("time") or ""
+            try:
+                # Minute rows require a date and time; date-only strings are invalid here.
+                if not isinstance(bar_datetime, str) or len(bar_datetime) < 16:
+                    raise ValueError("missing minute timestamp")
+                bar_date = datetime.fromisoformat(bar_datetime).date().isoformat()
+            except ValueError:
+                date_mismatch_counts[ts_code] = date_mismatch_counts.get(ts_code, 0) + 1
+                continue
+            if bar_date != expected_date:
+                date_mismatch_counts[ts_code] = date_mismatch_counts.get(ts_code, 0) + 1
+                continue
             snapshots.append({
                 "ts_code": ts_code,
                 "trade_date": trade_date,
                 "time_idx": int(b.get("time_idx", b.get("bar_idx", i))),
-                "datetime": b.get("datetime") or b.get("bar_time") or b.get("time") or "",
+                "datetime": bar_datetime,
                 "price": b.get("price"),
                 "vol": b.get("vol"),
                 "data_timestamp": b.get("data_timestamp"),  # client 源头 wall-clock ISO
             })
 
+    if date_mismatch_counts:
+        logger.warning(
+            "[minute] skip bars with missing, invalid, or mismatched datetime: "
+            "trade_date=%s expected_datetime_date=%s stocks=%s bars=%s",
+            trade_date,
+            expected_date,
+            len(date_mismatch_counts),
+            sum(date_mismatch_counts.values()),
+        )
     if not snapshots:
         return 0
 
