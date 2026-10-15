@@ -95,6 +95,11 @@ def test_mixed_old_and_current_day_payload_only_persists_current_day(monkeypatch
 
 
 def test_missing_or_invalid_datetime_is_rejected(monkeypatch, caplog):
+    capture_logger = logging.getLogger("persist_client_test_capture")
+    capture_logger.handlers.clear()
+    capture_logger.setLevel(logging.DEBUG)
+    capture_logger.propagate = True
+    monkeypatch.setattr(persist_client, "logger", capture_logger)
     connections, captured_rows = _install_memory_sqlite(monkeypatch)
     redis = FakeRedis({
         "000001.SZ": [

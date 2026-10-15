@@ -27,6 +27,7 @@ from service.savedata_loop import SavedataDaemon, main  # noqa: E402
 
 class SavedataLimitperformance(SavedataDaemon):
     KIND = "limitperformance"
+    DEFAULT_DRAIN = True
     DEFAULT_INTERVAL = 900.0   # 15 分钟(用户要求)
 
 

@@ -44,6 +44,11 @@ class FakeRedis:
 
 
 def test_persistence_boundary_skips_nonpositive_price_and_negative_volume(monkeypatch, caplog):
+    capture_logger = logging.getLogger("persist_client_test_capture")
+    capture_logger.handlers.clear()
+    capture_logger.setLevel(logging.DEBUG)
+    capture_logger.propagate = True
+    monkeypatch.setattr(persist_client, "logger", capture_logger)
     inserted_rows = []
 
     def fake_connect(_month):

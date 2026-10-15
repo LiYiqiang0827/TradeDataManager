@@ -137,6 +137,29 @@ class TradeCalendarGateTests(unittest.TestCase):
             scheduler._reload_watchlist_if_in_trade_window(log)
         spawn.assert_not_called()
 
+    def test_watchlist_reload_boundary_stops_at_post_savedata(self):
+        log = logging.getLogger(__name__)
+        calls = []
+        class FrozenDateTime(datetime):
+            fixed = None
+            @classmethod
+            def now(cls, tz=None):
+                return cls.fixed.replace(tzinfo=tz) if tz else cls.fixed
+
+        with mock.patch.object(scheduler, "_trade_calendar_status", return_value=True), \
+             mock.patch.object(scheduler, "spawn_service",
+                               side_effect=lambda name, args, **_kw: calls.append((name, args)) or 0):
+            for fixed in (
+                datetime(2026, 10, 15, 15, 15),
+                datetime(2026, 10, 15, 15, 16),
+                datetime(2026, 10, 15, 15, 27),
+            ):
+                FrozenDateTime.fixed = fixed
+                with mock.patch.object(scheduler, "datetime", FrozenDateTime):
+                    scheduler._reload_watchlist_if_in_trade_window(log)
+
+        self.assertEqual(calls, [("service_writeredis_watchlist", [])])
+
     def test_auction_final_and_draining_savedata_triggers(self):
         log = logging.getLogger(__name__)
         scheduler._triggered_today.clear()
@@ -192,6 +215,8 @@ class TradeCalendarGateTests(unittest.TestCase):
              mock.patch.object(scheduler, "run_phase_services", side_effect=stop_phase), \
              mock.patch.object(scheduler, "run_final_savedata_flush",
                                side_effect=lambda _log: events.append(("final-flush",)) or True), \
+             mock.patch.object(scheduler, "kill_daemon",
+                               side_effect=lambda name, _log: events.append(("watchlist-stop", name)) or True), \
              mock.patch.object(scheduler, "ensure_phase_services_alive", return_value=True), \
              mock.patch.object(scheduler.time, "sleep", side_effect=stop_after_flush):
             result = scheduler._run_scheduler_loop_body(log=logging.getLogger(__name__), scan_interval_sec=0)
@@ -201,6 +226,7 @@ class TradeCalendarGateTests(unittest.TestCase):
             ("phase-stop", "writer", "writer_stopped"),
             ("phase-stop", "savedata", "post_savedata"),
             ("final-flush",),
+            ("watchlist-stop", "service_writeredis_watchlist"),
         ])
         self.assertIn(("scheduler_savedata_phase", "post_savedata"), meta)
 
@@ -240,8 +266,9 @@ class TradeCalendarGateTests(unittest.TestCase):
             self.assertTrue(scheduler.run_final_savedata_flush(logging.getLogger(__name__)))
         self.assertEqual(calls, [
             (item["name"], ["--drain", "--once"])
-            for item in scheduler.SAVEDATA_DAEMONS_MORNING_AFTERNOON
+            for item in scheduler.SAVEDATA_FINAL_FLUSH_SERVICES
         ])
+        self.assertIn(("service_savedata_watchlist", ["--drain", "--once"]), calls)
 
     def test_final_flush_reports_any_one_shot_failure(self):
         calls = []
@@ -250,7 +277,7 @@ class TradeCalendarGateTests(unittest.TestCase):
             return 1 if name == "service_savedata_minute" else 0
         with mock.patch.object(scheduler, "spawn_service", side_effect=spawn):
             self.assertFalse(scheduler.run_final_savedata_flush(logging.getLogger(__name__)))
-        self.assertEqual(len(calls), len(scheduler.SAVEDATA_DAEMONS_MORNING_AFTERNOON))
+        self.assertEqual(len(calls), len(scheduler.SAVEDATA_FINAL_FLUSH_SERVICES))
 
     def test_loop_missing_calendar_starts_no_redis_or_services(self):
         scheduler._should_exit = False

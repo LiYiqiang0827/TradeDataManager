@@ -643,150 +643,117 @@ def _persist_stream_to_sqlite(
     stream_key: str,
     trade_date: str,
     batch_size: int = STREAM_BATCH,
+    drain: bool = False,
+    max_batches: int = 100,
 ) -> int:
-    """通用:从 STREAM 读游标之后新消息落盘(zt/break/anomaly/hot 共用)
+    """Persist one or more batches from a kind-specific Redis STREAM.
 
-    2026-09-11:每个落盘条打双时间戳
-        - data_timestamp   数据时间(数据源/客户端拿到数据时打,来自 payload)
-        - save_timestamp   落盘时间(写入 SQLite 的瞬间,本批 INSERT 共用)
-
-    Args:
-        kind: 落盘表名('zt' / 'break' / 'anomaly' / 'hot')
-        stream_key: 完整 Redis STREAM key(如 'online:zt:stream')
-
-    Returns:
-        写入条数(去重后)
+    Each successful batch is committed before its cursor is advanced. A failed
+    batch returns immediately with its cursor unchanged, so the batch can be
+    retried safely; earlier successful batches remain idempotently persisted.
     """
-    # 1. 读游标
-    last_id = read_cursor(conn, stream_key)
-    if last_id is None:
-        # fallback:Redis meta(兼容旧版)
-        # 注意:这里是 stream_key 而非 kind,没有现成 fallback,直接从 '0' 开始
-        last_id = "0"
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    if max_batches <= 0:
+        raise ValueError("max_batches must be positive")
 
-    save_ts_unix = time.time()  # ★ 本次落盘 wall clock
+    save_ts_unix = time.time()
     save_ts_iso = datetime.fromtimestamp(save_ts_unix).isoformat(timespec="milliseconds")
+    total_inserted = 0
+    batch_idx = 0
 
-    # 2. XREAD
-    raw = redis_client.r.xread({stream_key: last_id}, count=batch_size, block=STREAM_BLOCK_MS)
-    if not raw:
-        logger.debug(f"[{kind}] STREAM 无新消息")
-        return 0
-
-    msgs = raw[0][1] if raw else []
-    if not msgs:
-        return 0
-
-    # 3. 解析
-    snapshots = []
-    max_id = last_id
-    for stream_id, fields in msgs:
-        max_id = stream_id
-
-        # ★ v3 适配(2026-09-12):STREAM 字段已展开,优先直接用顶层字段,fallback 到 payload 嵌套(兼容旧版)
-        # 旧版:STREAM 只有 payload(JSON),所有数据要从 payload 拿
-        # 新版:STREAM 字段全展开,直接在顶层
-
-        # ★ 数据时间戳(<kind>_timestamp):优先顶层(新),fallback payload(旧)
-        kind_ts_field = f"{kind}_timestamp"
-        kind_ts_unix = (
-            fields.get(kind_ts_field)  # ★ v3 新增:顶层 zt_timestamp 等
-            or fields.get("data_timestamp")  # 旧字段
+    while True:
+        batch_idx += 1
+        last_id = read_cursor(conn, stream_key) or "0"
+        raw = redis_client.r.xread(
+            {stream_key: last_id}, count=batch_size, block=STREAM_BLOCK_MS,
         )
-        if kind_ts_unix is None:
-            # 旧版 payload 嵌套
-            payload_raw = fields.get("payload", "{}")
-            try:
-                payload = json.loads(payload_raw)
-            except json.JSONDecodeError:
-                payload = {}
-            kind_ts_unix = (
-                payload.get(kind_ts_field)
-                or payload.get("data_timestamp")
-                or payload.get("snap_ts_unix")
-            )
-        else:
-            # 字段展开版可能没有 payload,但仍要兼容
-            payload_raw = fields.get("payload")
-            if payload_raw:
+        if not raw:
+            logger.debug(f"[{kind}] STREAM 无新消息")
+            break
+        msgs = raw[0][1] if raw else []
+        if not msgs:
+            break
+
+        snapshots = []
+        max_id = last_id
+        for stream_id, fields in msgs:
+            max_id = stream_id
+            kind_ts_field = f"{kind}_timestamp"
+            kind_ts_raw = fields.get(kind_ts_field) or fields.get("data_timestamp")
+            payload = {}
+            if kind_ts_raw is None:
+                payload_raw = fields.get("payload", "{}")
                 try:
-                    payload = json.loads(payload_raw)
-                except json.JSONDecodeError:
+                    payload = json.loads(payload_raw) if isinstance(payload_raw, str) else dict(payload_raw)
+                except (json.JSONDecodeError, TypeError, ValueError):
                     payload = {}
+                kind_ts_raw = (
+                    payload.get(kind_ts_field)
+                    or payload.get("data_timestamp")
+                    or payload.get("snap_ts_unix")
+                )
             else:
-                payload = {}  # 顶层直接是数据字段,无 payload
+                payload_raw = fields.get("payload")
+                if payload_raw:
+                    try:
+                        payload = json.loads(payload_raw) if isinstance(payload_raw, str) else dict(payload_raw)
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        payload = {}
 
-        # 转 ISO 字符串(SQLite TEXT 列存 ISO,本地时区)
-        if kind_ts_unix is not None:
             try:
-                kind_ts_unix = float(kind_ts_unix)
-                kind_ts_iso = datetime.fromtimestamp(kind_ts_unix).isoformat(timespec="milliseconds")
-            except (ValueError, TypeError):
-                kind_ts_unix = save_ts_unix
+                timestamp = float(kind_ts_raw) if kind_ts_raw is not None else save_ts_unix
+                if abs(timestamp) > 1e12:
+                    timestamp /= 1000.0
+                kind_ts_iso = datetime.fromtimestamp(timestamp).isoformat(timespec="milliseconds")
+            except (ValueError, TypeError, OverflowError, OSError):
                 kind_ts_iso = save_ts_iso
-        else:
-            kind_ts_unix = save_ts_unix
-            kind_ts_iso = save_ts_iso
 
-        # ts_code:优先顶层(新),fallback payload(旧)
-        ts_code = (
-            fields.get("ts_code")
-            or payload.get("ts_code")
-            or payload.get("thscode")
-            or ""
+            ts_code = (
+                fields.get("ts_code") or payload.get("ts_code") or payload.get("thscode")
+                or payload.get("ticker") or f"_{kind}_{stream_id}"
+            )
+            record = {"ts_code": ts_code, kind_ts_field: kind_ts_iso, "payload": payload}
+            record.update({key: value for key, value in fields.items() if key != "payload"})
+            snapshots.append(record)
+
+        inserted = insert_snapshots_batch(
+            conn, kind=kind, trade_date=trade_date, snapshots=snapshots,
+        ) if snapshots else 0
+        logger.info(
+            f"[{kind}] STREAM 落盘 {inserted}/{len(snapshots)} 条到 {kind}_{trade_date},"
+            f"last_id={max_id}, save_ts={save_ts_iso}"
+            + (f" [drain batch {batch_idx}/{max_batches}]" if drain else "")
         )
-        if not ts_code and payload.get("ticker"):
-            ts_code = payload["ticker"]
-        if not ts_code:
-            # 没 ts_code 用 kind 名当虚拟键(异动/热股列表可能没有特定 ts_code)
-            ts_code = f"_{kind}_{kind_ts_unix}"
+        if inserted < 0:
+            logger.error(
+                f"[{kind}] 落盘失败,游标未推进(下次会重读 STREAM > last_id={last_id}),last_id={max_id}"
+            )
+            return inserted
 
-        # ★ v3 精简:只设置 zt_timestamp(替代 data_timestamp / save_timestamp)
-        # payload 整 dict 仍传给 extractor(_field() 会优先用顶层,fallback 到 payload)
-        # 顶层字段也加进去(extractor _field() 优先查顶层)
-        record = {
-            "ts_code": ts_code,
-            kind_ts_field: kind_ts_iso,  # ★ 数据时间戳 ISO 字符串
-            "payload": payload,
-        }
-        # 把所有顶层 STREAM 字段也展开进 record(extractor _field() 直接命中)
-        for k, v in fields.items():
-            if k == "payload":
-                continue  # 已在 record["payload"]
-            if k not in record:
-                record[k] = v
-
-        snapshots.append(record)
-
-    if not snapshots:
+        # This happens only after the batch insert succeeds. SQLite inserts are
+        # idempotent, so a crash between the data commit and cursor commit is safe.
         update_cursor(conn, stream_key=stream_key, last_id=max_id, trade_date=trade_date)
-        return 0
+        total_inserted += inserted
+        if not drain or len(msgs) < batch_size:
+            break
+        if batch_idx >= max_batches:
+            logger.warning(
+                f"[{kind}] drain 达到 max_batches={max_batches} 上限,停止"
+                f"(本轮已落 {total_inserted} 条,可能仍有积压,下次再追)"
+            )
+            break
 
-    # 4. 落盘
-    inserted = insert_snapshots_batch(
-        conn,
-        kind=kind,
-        trade_date=trade_date,
-        snapshots=snapshots,
-    )
-    logger.info(
-        f"[{kind}] STREAM 落盘 {inserted}/{len(snapshots)} 条到 {kind}_{trade_date},"
-        f"last_id={max_id}, save_ts={save_ts_iso}"
-    )
-    # 2026-09-15 v6.7:失败 -1 不推进游标,区别于 INSERT OR IGNORE 全去重返回 0
-    if inserted < 0:
-        logger.error(
-            f"[{kind}] 落盘失败,游标未推进(下次会重读 STREAM > last_id={last_id}),last_id={max_id}"
-        )
-        return inserted
-    update_cursor(conn, stream_key=stream_key, last_id=max_id, trade_date=trade_date)
-    return inserted
+    return total_inserted
 
 
 def persist_zt(
     redis_client: OnlineRedis,
     *,
     trade_date: str,
+    drain: bool = False,
+    batch_size: int = STREAM_BATCH,
+    max_batches: int = 100,
 ) -> int:
     """从 online:zt:stream 读,落盘到 SQLite(2026-09-11 改造:从 STREAM 而非 ZSET)"""
     ym = trade_date[:6]
@@ -797,6 +764,7 @@ def persist_zt(
             kind="zt",
             stream_key=f"{PREFIX}:zt:stream",
             trade_date=trade_date,
+            batch_size=batch_size, drain=drain, max_batches=max_batches,
         )
     finally:
         conn.close()
@@ -806,6 +774,9 @@ def persist_break(
     redis_client: OnlineRedis,
     *,
     trade_date: str,
+    drain: bool = False,
+    batch_size: int = STREAM_BATCH,
+    max_batches: int = 100,
 ) -> int:
     """炸板池落盘(从 STREAM 读)"""
     ym = trade_date[:6]
@@ -816,6 +787,7 @@ def persist_break(
             kind="break",
             stream_key=f"{PREFIX}:break:stream",
             trade_date=trade_date,
+            batch_size=batch_size, drain=drain, max_batches=max_batches,
         )
     finally:
         conn.close()
@@ -826,83 +798,20 @@ def persist_anomaly(
     *,
     trade_date: str,
     batch_size: int = STREAM_BATCH,
+    drain: bool = False,
+    max_batches: int = 100,
 ) -> int:
-    """异动清单落盘(从 STREAM 读,2026-09-12 v3 改造,2026-09-16 v6.12 精简):
-      - 顶层字段 → anomaly_<date> 表
-      - keyword_list 不再拆 anomaly_keywords_<date> 长表(用户原话"没必要存")
-      - 时间戳 anomaly_timestamp(顶层已存 ISO 字符串)
-      """
-    from core.sqlite_client import (
-        _KIND_EXTRACTORS,
-        _KIND_COLUMNS,
-        ensure_table,
-    )
-
+    """Persist anomaly STREAM rows with the same cursor/drain contract as other stream families."""
     ym = trade_date[:6]
     conn = connect(ym)
     try:
-        ensure_table(conn, kind="anomaly", trade_date=trade_date)
-
-        stream_key = f"{PREFIX}:anomaly:stream"
-
-        # 1. 读 STREAM(从游标位置开始,简单 xread,不分组)
-        last_id = _get_cursor(redis_client, conn, "anomaly")
-        raw = redis_client.r.xread({stream_key: last_id}, count=batch_size)
-        if not raw:
-            logger.info(f"[anomaly] STREAM {stream_key} 无新记录")
-            return 0
-
-        msgs = raw[0][1] if raw else []
-        if not msgs:
-            return 0
-
-        # 2. 提取顶层字段
-        # msgs 是 [(stream_id, {field: value}), ...],fields 已是 dict(str→str)
-        extractor = _KIND_EXTRACTORS["anomaly"]
-        top_rows = []
-        max_id = last_id
-        save_ts_iso = datetime.now().isoformat(timespec="milliseconds")
-        for stream_id, fields in msgs:
-            # ★ v3:把 ms/unix 时间戳转 ISO 字符串(统一存盘格式)
-            anomaly_ts_raw = fields.get("anomaly_timestamp") or fields.get("data_timestamp")
-            if anomaly_ts_raw:
-                try:
-                    ts_float = float(anomaly_ts_raw)
-                    if ts_float > 1e12:  # ms
-                        ts_float /= 1000
-                    anomaly_ts_iso = datetime.fromtimestamp(ts_float).isoformat(timespec="milliseconds")
-                except (ValueError, TypeError):
-                    anomaly_ts_iso = save_ts_iso
-            else:
-                anomaly_ts_iso = save_ts_iso
-            fields_with_iso = {**fields, "anomaly_timestamp": anomaly_ts_iso}
-            rec = fields_with_iso
-            top_rows.append(extractor(rec, trade_date=trade_date))
-
-            # 2026-09-16 v6.12:keyword_list 不再拆 anomaly_keywords 长表(用户要求"没必要存")
-
-            if stream_id > max_id:
-                max_id = stream_id
-
-        # 3. 写顶层
-        cols = _KIND_COLUMNS["anomaly"]
-        placeholders = ",".join("?" for _ in cols)
-        col_names = ",".join(cols)
-        table_name = f"anomaly_{trade_date}"
-        cur = conn.executemany(
-            f"INSERT OR IGNORE INTO {table_name} ({col_names}) VALUES ({placeholders})",
-            top_rows,
+        return _persist_stream_to_sqlite(
+            redis_client, conn,
+            kind="anomaly",
+            stream_key=f"{PREFIX}:anomaly:stream",
+            trade_date=trade_date,
+            batch_size=batch_size, drain=drain, max_batches=max_batches,
         )
-        top_inserted = cur.rowcount
-
-        conn.commit()
-
-        logger.info(
-            f"[anomaly] STREAM 落盘 {top_inserted}/{len(top_rows)} 条到 {table_name},"
-            f"last_id={max_id}"
-        )
-        update_cursor(conn, stream_key=stream_key, last_id=max_id, trade_date=trade_date)
-        return top_inserted
     finally:
         conn.close()
 
@@ -911,6 +820,9 @@ def persist_hot(
     redis_client: OnlineRedis,
     *,
     trade_date: str,
+    drain: bool = False,
+    batch_size: int = STREAM_BATCH,
+    max_batches: int = 100,
 ) -> int:
     """热股榜落盘(从 STREAM 读)"""
     ym = trade_date[:6]
@@ -921,6 +833,7 @@ def persist_hot(
             kind="hot",
             stream_key=f"{PREFIX}:hot:stream",
             trade_date=trade_date,
+            batch_size=batch_size, drain=drain, max_batches=max_batches,
         )
     finally:
         conn.close()
@@ -930,6 +843,9 @@ def persist_limitperformance(
     redis_client: OnlineRedis,
     *,
     trade_date: str,
+    drain: bool = False,
+    batch_size: int = STREAM_BATCH,
+    max_batches: int = 100,
 ) -> int:
     """涨停表现详情落盘(2026-09-14 v5 新增)
 
@@ -949,6 +865,7 @@ def persist_limitperformance(
             kind="limitperformance",
             stream_key=f"{PREFIX}:limitperformance:stream",
             trade_date=trade_date,
+            batch_size=batch_size, drain=drain, max_batches=max_batches,
         )
     finally:
         conn.close()
@@ -963,29 +880,29 @@ def persist_kind(
     kind: str,
     trade_date: str,
     drain: bool = False,
+    max_batches: int = 100,
 ) -> int:
     """落盘一种 kind(自动路由到 STREAM / ZSET / 等)
 
-    2026-09-15 v6.8:加 drain 参数,只对 STREAM kind(auction/snapshot/orderbook/watchlist)有效。
-    drain=True 时连续读完所有积压,治本(savedata 间隔长也不积压)。
-    ZSET 类 kind(minute/zt/break/anomaly/hot/limitperformance)无需 drain,参数被忽略。
+    drain=True 时对全部 STREAM kind 持续分页到积压读完或达到 max_batches。
+    minute 仍使用既有 ZSET 路径，不受 drain 影响。
     """
     if kind in ("auction", "snapshot", "orderbook", "snapshot_index"):  # 2026-09-16 v6.10 新增 snapshot_index
-        return persist_stream_kind(redis_client, kind=kind, trade_date=trade_date, drain=drain)
+        return persist_stream_kind(redis_client, kind=kind, trade_date=trade_date, drain=drain, max_batches=max_batches)
     elif kind == "watchlist":                                       # 2026-09-15 v6.7 新增
-        return persist_watchlist(redis_client, trade_date=trade_date, drain=drain)
+        return persist_watchlist(redis_client, trade_date=trade_date, drain=drain, max_batches=max_batches)
     elif kind == "minute":
         return persist_minute(redis_client, trade_date=trade_date)
     elif kind == "zt":
-        return persist_zt(redis_client, trade_date=trade_date)
+        return persist_zt(redis_client, trade_date=trade_date, drain=drain, max_batches=max_batches)
     elif kind == "break":
-        return persist_break(redis_client, trade_date=trade_date)
+        return persist_break(redis_client, trade_date=trade_date, drain=drain, max_batches=max_batches)
     elif kind == "anomaly":
-        return persist_anomaly(redis_client, trade_date=trade_date)
+        return persist_anomaly(redis_client, trade_date=trade_date, drain=drain, max_batches=max_batches)
     elif kind == "hot":
-        return persist_hot(redis_client, trade_date=trade_date)
+        return persist_hot(redis_client, trade_date=trade_date, drain=drain, max_batches=max_batches)
     elif kind == "limitperformance":                              # 2026-09-14 v5 新增
-        return persist_limitperformance(redis_client, trade_date=trade_date)
+        return persist_limitperformance(redis_client, trade_date=trade_date, drain=drain, max_batches=max_batches)
     else:
         raise ValueError(
             f"kind 必须是 auction/snapshot/orderbook/snapshot_index/watchlist/minute/zt/break/anomaly/hot/limitperformance,实际 {kind!r}"
@@ -998,6 +915,7 @@ def persist_all(
     trade_date: str,
     kinds: list[str] | None = None,
     drain: bool = False,
+    max_batches: int = 100,
 ) -> dict[str, int]:
     """落盘所有 kind
 
@@ -1005,6 +923,7 @@ def persist_all(
         trade_date: YYYYMMDD
         kinds: 要落盘的 kind 列表,None = 全部 9 种(含 limitperformance)
         drain: 是否 drain(同 persist_kind),默认 False 单 batch
+        max_batches: drain 的最大批次数，防止错误游标导致无限循环
 
     Returns:
         {kind: inserted_count, ...}
@@ -1015,7 +934,7 @@ def persist_all(
     results = {}
     for kind in kinds:
         try:
-            results[kind] = persist_kind(redis_client, kind=kind, trade_date=trade_date, drain=drain)
+            results[kind] = persist_kind(redis_client, kind=kind, trade_date=trade_date, drain=drain, max_batches=max_batches)
         except Exception as e:
             logger.error(f"[{kind}] 落盘失败: {e}", exc_info=True)
             results[kind] = -1

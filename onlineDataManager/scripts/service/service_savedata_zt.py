@@ -18,6 +18,7 @@ from service.savedata_loop import SavedataDaemon, main  # noqa: E402
 
 class SavedataZt(SavedataDaemon):
     KIND = "zt"
+    DEFAULT_DRAIN = True
     DEFAULT_INTERVAL = 1800.0   # 30 分钟
 
 

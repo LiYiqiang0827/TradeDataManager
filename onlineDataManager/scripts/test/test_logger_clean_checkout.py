@@ -10,12 +10,14 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from core import logger as logger_module  # noqa: E402
 
+_REAL_SETUP_LOGGER = logger_module.setup_logger
+
 
 def test_setup_logger_creates_missing_log_directory(monkeypatch, tmp_path):
     log_dir = tmp_path / "onlineDataManager" / "logs"
     monkeypatch.setattr(logger_module, "LOG_DIR", log_dir)
     name = f"clean-checkout-{tmp_path.name}"
-    logger = logger_module.setup_logger(name)
+    logger = _REAL_SETUP_LOGGER(name)
     try:
         assert log_dir.is_dir()
         file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]

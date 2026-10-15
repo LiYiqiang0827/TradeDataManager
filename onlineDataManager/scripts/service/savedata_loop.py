@@ -109,10 +109,8 @@ class SavedataDaemon:
 def main(cls: type[SavedataDaemon], extra_args: list = None) -> int:
     """通用 main 入口:解析 --once/--interval/--drain 后实例化子类运行
 
-    2026-09-15 v6.8 加 --drain:
-      - drain=True 时,每次 _do_persist 会连续读完所有积压(直到 batch 不满)
-      - 治本:即使 savedata 间隔长(默认 15 分钟),STREAM 也不积压
-      - 非 drain(默认 False):每轮只落 1 batch(向后兼容)
+    --drain 可覆盖子类默认值；默认读取 cls.DEFAULT_DRAIN，未声明时为 False。
+    drain=True 时持续分页至流暂时为空或达到 max_batches；这不证明历史上未发生过 stream trim。
     """
     import argparse
     parser = argparse.ArgumentParser(description=f"Service: savedata[{cls.KIND}]")

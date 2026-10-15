@@ -264,7 +264,13 @@ SAVEDATA_DAEMONS_MORNING_AFTERNOON: list[dict] = [
     {"name": "service_savedata_snapshot_index", "args": []},
 ]
 
-# writer/savedata daemon；watchlist 在 phase 之间保留，到 closed/weekend 或 scheduler 退出时清理
+# 闭市同步落盘需要覆盖全部STREAM类，watchlist也可能在15:16之后由重启补写。
+SAVEDATA_FINAL_FLUSH_SERVICES: list[dict] = [
+    *SAVEDATA_DAEMONS_MORNING_AFTERNOON,
+    {"name": "service_savedata_watchlist", "args": []},
+]
+
+# writer/savedata daemon；watchlist在post_savedata及closed/weekend或scheduler退出时清理。
 # v6.15:不含 orderbook(已停止抓取)
 ALL_TRADE_DAEMONS: list[dict] = (
     WRITER_DAEMONS_MORNING_AFTERNOON
@@ -591,7 +597,7 @@ def run_phase_services(
         if old_name in new_names:
             continue
         if pid_scope == "writer" and old_name.startswith("service_writeredis_"):
-            if old_name == "service_writeredis_watchlist" and phase not in {"closed", "weekend", "market_closed", "calendar_unavailable"}:
+            if old_name == "service_writeredis_watchlist" and phase not in {"post_savedata", "closed", "weekend", "market_closed", "calendar_unavailable"}:
                 continue
             if not kill_daemon(old_name, log):
                 failed_stops.append(old_name)
@@ -638,7 +644,7 @@ def run_final_savedata_flush(log: logging.Logger) -> bool:
     """Synchronously flush every savedata family after owned daemons have stopped."""
     log.warning("[savedata final-flush] starting once-only --drain flush for all savedata families")
     failed = []
-    for svc in SAVEDATA_DAEMONS_MORNING_AFTERNOON:
+    for svc in SAVEDATA_FINAL_FLUSH_SERVICES:
         name = svc["name"]
         rc = spawn_service(name, ["--drain", "--once"], log=log)
         if rc != 0:
@@ -646,7 +652,7 @@ def run_final_savedata_flush(log: logging.Logger) -> bool:
     if failed:
         log.critical("[savedata final-flush] not confirmed; failing scheduler close: %s", failed)
         return False
-    log.info("[savedata final-flush] all %d families completed", len(SAVEDATA_DAEMONS_MORNING_AFTERNOON))
+    log.info("[savedata final-flush] all %d families completed", len(SAVEDATA_FINAL_FLUSH_SERVICES))
     return True
 
 
@@ -856,26 +862,17 @@ def kill_all_daemons(log: logging.Logger) -> bool:
 
 
 def _reload_watchlist_if_in_trade_window(log: logging.Logger) -> None:
-    """交易时间段内 [09:10, 15:30] 每次 scheduler 启动都补一次 watchlist
+    """交易日 [09:10, 15:16) 内scheduler重启时补一次watchlist。
 
-    背景:
-      - 09:10-09:14 watchlist 阶段启 service_writeredis_watchlist 一次性写 Redis
-      - 09:14 之后该 service 进入 idle sleep,等待 15:35 closed 阶段被杀
-      - 如果盘中(09:14-15:30)scheduler 被 kill_all_daemons 重启,watchlist 进程被杀掉
-      - 此时盘中阶段(morning_writer / afternoon_writer)不会主动启 watchlist
-      - 需要 scheduler 启动时显式补一次,让 Redis 里的 watchlist 数据保持最新
-
-    实现:
-      - 当前时间在 [09:10, 15:30] 内 → subprocess.Popen 启 watchlist daemon
-      - watchlist daemon 内部先写一次 Redis,再 idle sleep,15:35 阶段切换时被 kill
-      - 使用统一 spawn_service 登记 Popen 和独立进程组；phase 切换或 scheduler finally 清理
+    Watchlist writer在post_savedata阶段停止，避免闭市后重启把当前watchlist
+    误当作盘中快照；savedata收尾flush会按实际watchlist_timestamp落盘。
     """
     now = datetime.now(_SHANGHAI)
     hh, mm = now.hour, now.minute
     t = hh * 60 + mm
 
-    # 交易窗口:09:10 - 15:30(确保 watchlist 阶段结束后到落盘全部结束前的窗口都覆盖)
-    if not (9 * 60 + 10 <= t <= 15 * 60 + 30):
+    # 09:10-15:15可补写；15:16进入post_savedata，禁止闭市后重启生成新watchlist。
+    if not (9 * 60 + 10 <= t < 15 * 60 + 16):
         log.info(f"[{now.strftime('%H:%M:%S')}] 非交易窗口,跳过 watchlist 补写")
         return
 
@@ -964,9 +961,9 @@ def _run_scheduler_loop_body(*, log: logging.Logger, scan_interval_sec: float = 
                             log.critical("savedata final-flush 未完成，停止 scheduler且不记录闭市成功")
                             return False
                     last_savedata_phase = savedata_phase
-                if savedata_phase in {"closed", "weekend", "market_closed", "calendar_unavailable"}:
+                if savedata_phase in {"post_savedata", "closed", "weekend", "market_closed", "calendar_unavailable"}:
                     if not kill_daemon("service_writeredis_watchlist", log):
-                        log.critical("收盘时 watchlist daemon 未确认退出，停止 scheduler")
+                        log.critical("post_savedata/收盘时 watchlist daemon 未确认退出，停止 scheduler")
                         return False
 
                 if r:

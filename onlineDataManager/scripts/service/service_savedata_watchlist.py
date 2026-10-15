@@ -49,6 +49,7 @@ from service.savedata_loop import SavedataDaemon                                
 class SavedataWatchlist(SavedataDaemon):
     KIND = "watchlist"
     DEFAULT_INTERVAL = 1800.0   # 30 分钟
+    DEFAULT_DRAIN = True        # 最终flush需一次性排空当前STREAM积压
 
     def __init__(self, log: logging.Logger | None = None):
         super().__init__(log=log)
@@ -70,7 +71,8 @@ class SavedataWatchlist(SavedataDaemon):
         """
         td = self._get_trade_date()
         try:
-            n = persist_kind(self.r, kind="watchlist", trade_date=td)
+            n = persist_kind(self.r, kind="watchlist", trade_date=td,
+                             drain=getattr(self, "_drain", self.DEFAULT_DRAIN))
             if n > 0:
                 self.round_idx += 1
                 self.log.info(
@@ -82,7 +84,7 @@ class SavedataWatchlist(SavedataDaemon):
         except Exception as e:
             self.log.error(f"watchlist 落盘失败: {e}", exc_info=True)
             self.r.set_meta("watchlist_savedata_last_error", str(e))
-            return 0
+            raise
 
 
 if __name__ == "__main__":
