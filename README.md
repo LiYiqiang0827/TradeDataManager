@@ -8,8 +8,8 @@ This repository holds offline and online collection services, schedulers, databa
 - `TRADING_RESEARCH_ROOT` selects the strategy-artifact root. Default: `~/TradingAgent/MrLi`; theme analysis outputs go under its `outputs/` directory.
 - `TRADING_DATABASE_ROOT` selects the data root. Default: `~/TradingDatabase`; offline services use `offline/`, online SQLite services use `online/`, and Redis persistence uses `online/redis/`.
 - `TRADE_AGENT_ROOT_PATH` remains a legacy code-root variable and is ignored when selecting database paths. This prevents old environments from creating or querying an empty database under the strategy checkout.
-- `TRADING_AGENT_ENV_FILE` selects the local environment file for scheduler credentials. Default: `/Users/nickzhang/TradingAgent/.env`; secrets are not copied into this repository.
-- `TRADING_MANAGER_PYTHON` selects the Python executable for launchd. Its default reuses the existing local TradingAgent virtual environment.
+- `TRADING_AGENT_ENV_FILE` selects the local environment file for scheduler credentials. Default: `$TRADING_DATA_MANAGER_ROOT/.env`; bare `KEY=value` entries are exported by the launcher, while secrets stay outside the repository.
+- `TRADING_MANAGER_PYTHON` selects the Python executable for launchd. Default: `$TRADING_DATA_MANAGER_ROOT/.venv/bin/python`; an explicit launch environment override takes precedence over values in `.env`.
 
 Path helpers do not create database directories on import. An offline read through `get_conn` raises `FileNotFoundError` when the expected store is absent; database initialization remains an explicit operation.
 
