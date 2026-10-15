@@ -124,3 +124,19 @@ Mac mini可能拥有本机没有的近期在线记录，不能用本机副本直
 - 四张周/月表合计6221194行完成全键、OHLC、pre_close/change、量额比对。NumPy生产舍入规则重算全部pct_chg后四表差异和NULL差异均0。DuckDB另一种舍入的严格差94/59/39/29保留在回执，已明确解释，不是放宽容差后隐藏不匹配。
 - 26个旧300114.SZ代码日均有302132.SZ分钟数据，240根/日；26日close全同，high23/26、low25/26相同，开盘口径和历史vendor数据差异另列。因此仅标记为历史别名覆盖证据，未更改物理代码或声称所有字段一致。4406个分钟有/日线无的股票日仍为未分类来源差异。
 - Mini两仓已实际fetch/pull到已发布版本，TA为445d35a、TDM为36f766b（后续仍会发布最终审计与STREAM修复）。本机服务继续禁用；共享6379未停止/修改、原始竞价零导出。其余SQLite内容审计已完成25/32个非核心实际表，新闻长表仍在扫，不能将partial写成全表完成。
+
+## 16:05收盘复核及修复中的阻塞项
+
+- TDM `31537bd` 已正常发布并在Mini快进，完整在线隔离测试77/77通过。受管父进程15:59:41后完成9类同步最终flush（包括watchlist），15:59:53结束且全部rc=0；原watchlist PID8472已退出，新parent12034没有采集或落盘leaf。当前8个非空STREAM的SQLite cursor与Redis6380 tail一致；auction当前6380流不存在，保留原SQLite cursor与历史缺口，不以重置游标制造通过。该检查仅证明当前保留消息已消费，不能证明此前MAXLEN裁剪从未丢失消息。
+- 主agent独立review发现新增generic STREAM记录展开覆盖了已解析时间戳，77项测试主要检查分页/游标而未覆盖真实SQLite字段值。Mini实查本次flush新增zt中2313条、anomaly中1728条时间字段存成Unix秒/毫秒TEXT；源时刻可换算且交易日期仍为10月15日，但存储格式不符合既有ISO契约。已暂停最终验收，要求最小补丁及真实extractor/SQLite回归；数据库先完整备份，再按源时间规范化与唯一键冲突审查。此缺陷不涉及minute的ZSET及其已自动落盘的73根15:00 bar。
+- 其余32张offline SQLite表已完成扫描。快讯中308967个原审计器标为invalid ISO的值均为分钟精度候选，正在对`tbl_news.datetime`单列补充格式分类，不改原始新闻时间、不补造秒数。融资融券明细有1条明确的接口错误提示占位，已完成隔离复现和写入校验修复；合法NULL财务字段保留，坏响应不推进月水位，25项相关测试通过，单条生产隔离事务待执行。
+
+## 16:30后实际修复与退出核验
+
+- 时间戳和flag修复发布为`43a932e`，Mini运行同版本完整在线测试81项通过；16:12:55经原label SIGTERM只启动新parent13671，识别closed阶段后未启动watchlist、writer或saver。根agent随后独立全进程核对：Mini仅online/offline两个数据调度父进程及原共享6379、新6380；本机没有数据服务进程。
+- 当前10/15事件行先完整归档全部列、schema和SHA，再执行精确事务：zt中5000个与6380保留源逐代码+事件时间精确匹配的key将is_st/is_new恢复为0，其中2313条同时把epoch秒转为既有CST无时区ISO毫秒；anomaly的1728条raw-ms中1395条规范化、331条与既有ISO键逐payload相同的副本归档去重、2条tag_name不同的raw侧保留到冲突隔离并从活动表移除，原ISO侧未改。2组不同payload仍未解决，未当作等价重复。修后两表raw epoch均0、quick_check=ok，分钟行情和STREAM cursor不变。私有结果receipt SHA为`d1257bd68957e5dc4e0c58b85caf746335af2dabe64fe969078fb9b0659777ec`。
+- 当前zt为11591条，5000个可证源key已修，6591条未被当前源覆盖；9月和10月其它日的333588条亦无可用历史flag真值，合计340179条保留原始存值但明确不可信，不据此认定ST/次新。query_db新增质量元信息和DataFrame attrs；同时修正minute假列、snapshot_index时间列和DataFrame时间过滤契约，完整在线测试86项通过。代码发布不等于所有旧数据已恢复真值。
+- 8类当前非空STREAM的cursor均等于tail；auction流当前不存在，保留旧cursor与用户暂缓恢复的缺口。今日分钟表仍22921行/119曾观察代码，15:00仍73行/73只、实际created_at仍15:16:13.961—14.052。
+- 完整v2审计覆盖32个非核心SQLite表；v3只重扫tbl_news.datetime，9578880条中9269913为合法秒级、308967为合法分钟级，NULL/空/非法/未知均0；其余31表profile逐值沿用未重扫。v3 writer/schema元信息、v2基线SHA及组合覆盖provenance已修正；私有v3 receipt SHA为`6af7abedb784c57ec441921f6608d0d831ccc8d280b5e163d40ac0aadf8609dc`。
+- 本机两旧scheduler的永久disable初次自动审批未识别原授权范围。根agent补充原问题中“并永久禁用本机这些服务”及用户直接批准原文，按同一准确label重新提交审查后获准；没有包装或绕过执行。最终`print-disabled gui/503`明确offlineData、onlineData、redis三个原始label均disabled。私有根核验receipt SHA为`6d53d4199badbba79fc373469402369faf2ad406da9283bd12acb9976a38a9a5`。
+- Mini正式融资融券明细的1条错误提示占位已完整备份原行和schema，经事务内全列相同检查后精准隔离；changes=1、修后目标0、quick_check=ok。回退档案`margin_placeholder_repair_2026-10-15T162935+0800/`的原行/schema SHA为`8141c56e5eb85636ff78ae061aa0465ca5ae494b7d5ad332d3a96568325e4d40`。新下载校验已发布`5770fef`；现有接入源在10月1日返回73条closed-date limit_list的矛盾只记录证据，不批删、不冒称交易所事实。
