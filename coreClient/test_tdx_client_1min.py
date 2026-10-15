@@ -75,3 +75,17 @@ def test_download_one_minute_filters_date_range_and_validates_arguments(monkeypa
         assert "互斥" in str(exc)
     else:
         raise AssertionError("互斥日期参数应报错")
+
+
+def test_exact_zero_decoder_sentinel_is_corrected_and_recorded(monkeypatch):
+    monkeypatch.setattr(tdx_module, "TDX_KLINE_PAGE_SIZE", 4)
+    row = _bar(20260924, 14, 59, 10.0)
+    row["vol"] = row["amount"] = 2.0 ** -127
+    result = _client(FakePagedApi({0: [row]})).download_one_minute(
+        "600000.SH", trade_date="20260924",
+    )
+    assert len(result) == 1
+    assert result[0]["vol"] == 0 and result[0]["amount"] == 0
+    assert "pytdx_zero_volume_sentinel_corrected" in result[0]["decoder_corrections"]
+    assert "pytdx_zero_amount_sentinel_corrected" in result[0]["decoder_corrections"]
+    assert set(result[0]["decoder_corrections"]).issubset(result[0]["quality_flags"])

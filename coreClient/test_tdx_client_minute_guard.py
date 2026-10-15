@@ -82,6 +82,24 @@ def test_live_minute_drops_current_forming_and_future_bars(monkeypatch, caplog):
     assert "count=2" in caplog.text
 
 
+def test_live_minute_preserves_zero_volume_bar_and_marks_soft_quality_flag(caplog):
+    client = TdxClient.__new__(TdxClient)
+    client.api = FakeNativeMinuteApi([_native_bar(9, 31, close=14.33, vol=0, amount=100.31)])
+    client.ip, client.port = "fake.local", 7709
+
+    with caplog.at_level(logging.WARNING, logger="tdx_client"):
+        rows = client.get_minute_kline("920000.BJ")
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["price"] == 14.33
+    assert row["vol"] == 0
+    assert row["source_amount"] == 100.31
+    assert row["source_ohlc"] == {"open": 14.33, "high": 14.33, "low": 14.33, "close": 14.33}
+    assert row["quality_flags"] == ["amount_nonzero_with_zero_volume"]
+    assert "retained source-quality flagged bars" in caplog.text
+
+
 def test_pytdx_signed_delta_decoder_can_emit_nonpositive_price():
     body = struct.pack("<H2x", 1) + bytes((0xD5, 0x01, 0x00, 0x01))
     decoded = PytdxMinuteParser(None).parseResponse(body)
@@ -106,6 +124,7 @@ def test_history_minute_uses_native_bars_and_preserves_legacy_fields(monkeypatch
 
     assert client.get_history_minute("000001.SZ", 20261014) == [{
         "ts_code": "000001.SZ",
+        "source": "tdx_native_1min",
         "trade_date": "2026-10-14",
         "datetime": "2026-10-14 09:31:00",
         "time_idx": 0,

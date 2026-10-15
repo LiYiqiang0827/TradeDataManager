@@ -210,6 +210,25 @@ def stage_tdx_one_min_batch(
     frame = _normalize_tdx_rows(rows)
     root = Path(stage_root)
     token = uuid.uuid4().hex
+    quality_by_day: dict[str, list[dict]] = {}
+    for row in rows:
+        if not row.get("quality_flags"):
+            continue
+        day_text = str(row.get("trade_date", "")).replace("-", "")
+        payload = {
+            key: row.get(key)
+            for key in ("open", "high", "low", "close", "vol", "amount")
+        }
+        payload["decoder_corrections"] = list(row.get("decoder_corrections", ()))
+        payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        quality_by_day.setdefault(day_text, []).append({
+            "trade_date": int(day_text), "ts_code": str(row["ts_code"]),
+            "time_idx": int(row["time_idx"]), "datetime": str(row["datetime"]),
+            "quality_flags": json.dumps(sorted(set(row["quality_flags"]))),
+            "source": str(row.get("source", "tdx_native_1min")),
+            "source_payload_json": payload_json,
+            "source_payload_sha256": hashlib.sha256(payload_json.encode("utf-8")).hexdigest(),
+        })
     dates = []
     for day, group in frame.groupby("trade_date", sort=True):
         day_text = str(int(day))
@@ -223,6 +242,14 @@ def stage_tdx_one_min_batch(
             use_dictionary=["ts_code"], row_group_size=131_072,
         )
         temp.replace(target)
+        quality_rows = quality_by_day.get(day_text, [])
+        if quality_rows:
+            quality_dir = root / "_quality_stage" / f"trade_date={day_text}"
+            quality_dir.mkdir(parents=True, exist_ok=True)
+            quality_target = quality_dir / f"part-{token}.parquet"
+            quality_temp = quality_target.with_suffix(".parquet.inprogress")
+            pq.write_table(pa.Table.from_pylist(quality_rows), quality_temp, compression="zstd")
+            quality_temp.replace(quality_target)
         dates.append(day_text)
     return {"rows": len(frame), "dates": dates}
 
@@ -407,6 +434,9 @@ def finalize_tdx_one_min_day(
     manifest_path = _manifest_path(base, day)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     temp_manifest = manifest_path.with_suffix(".json.inprogress")
+    quality_path = base / "_quality" / f"trade_date={day}" / "part-000.parquet"
+    quality_temp = quality_path.with_suffix(".parquet.inprogress")
+    quality_temp.unlink(missing_ok=True)
     temp.unlink(missing_ok=True)
     temp_manifest.unlink(missing_ok=True)
 
@@ -569,6 +599,28 @@ def finalize_tdx_one_min_day(
             ) TO '{escaped_temp}'
             (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 131072)
         """)
+    quality_stage_dir = stage_dir.parent / "_quality_stage" / f"trade_date={day}"
+    quality_files = [quality_stage_dir / path.name for path in stage_files]
+    quality_files = [path for path in quality_files if path.is_file()]
+    quality_frames = []
+    if quality_files:
+        quality_frames.extend(pd.read_parquet(path) for path in quality_files)
+    if target.is_file() and quality_path.is_file() and missing_codes:
+        old_quality = pd.read_parquet(quality_path)
+        quality_frames.append(old_quality[old_quality["ts_code"].isin(missing_codes)])
+    quality_path.parent.mkdir(parents=True, exist_ok=True)
+    if quality_frames:
+        quality_frame = pd.concat(quality_frames, ignore_index=True).drop_duplicates(
+            ["trade_date", "ts_code", "time_idx"], keep="last"
+        ).sort_values(["ts_code", "time_idx"], kind="stable")
+        pq.write_table(pa.Table.from_pandas(quality_frame, preserve_index=False), quality_temp,
+                       compression="zstd")
+        quality_count = len(quality_frame)
+        quality_sha256 = hashlib.sha256(quality_temp.read_bytes()).hexdigest()
+    else:
+        quality_temp.unlink(missing_ok=True)
+        quality_count = 0
+        quality_sha256 = None
     stats = _partition_stats(temp)
     if stats["rows"] == 0 or stats["duplicate_keys"] or stats["invalid_rows"]:
         temp.unlink(missing_ok=True)
@@ -591,16 +643,48 @@ def finalize_tdx_one_min_day(
         "csv_fallback_rows": fallback_rows,
         "source_lineage": _stock_day_lineage(day, stage_codes, missing_codes, manifest_path),
         "excluded_non_trading_placeholders": excluded_placeholders,
+        "quality_sidecar": (str(quality_path) if quality_count else None),
+        "quality_sidecar_rows": quality_count,
+        "quality_sidecar_sha256": quality_sha256,
         "imported_at": datetime.now(timezone.utc).isoformat(),
     }
-    temp_manifest.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    pending_manifest = dict(manifest, status="pending_quality_sidecar")
+    pending_path = manifest_path.with_suffix(".json.pending")
+    pending_path.write_text(json.dumps(pending_manifest, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    pending_path.replace(manifest_path)
     temp.replace(target)
+    if quality_temp.is_file():
+        quality_temp.replace(quality_path)
+    else:
+        quality_path.unlink(missing_ok=True)
+    temp_manifest.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     temp_manifest.replace(manifest_path)
     _record_tdx_partition(
         day, target, stats, source_host=source_host, data_source=data_source,
         catalog_path=catalog_path,
     )
     return manifest
+
+
+def get_one_min_quality(
+    trade_date: str,
+    *,
+    ts_code: Optional[str] = None,
+    root: Optional[Union[str, Path]] = None,
+) -> pd.DataFrame:
+    """Read source-quality sidecar rows without changing the canonical bar schema."""
+    day = normalize_trade_date(trade_date)
+    base = Path(root) if root is not None else ONE_MIN_PARQUET_ROOT
+    sidecar = base / "_quality" / f"trade_date={day}" / "part-000.parquet"
+    if not sidecar.is_file():
+        return pd.DataFrame(columns=[
+            "trade_date", "ts_code", "time_idx", "datetime", "quality_flags", "source",
+            "source_payload_json", "source_payload_sha256",
+        ])
+    frame = pd.read_parquet(sidecar)
+    if ts_code is not None:
+        frame = frame[frame["ts_code"] == str(ts_code).upper()]
+    return frame.sort_values(["ts_code", "time_idx"], kind="stable").reset_index(drop=True)
 
 
 def normalize_existing_one_min_partitions(

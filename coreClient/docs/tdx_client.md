@@ -236,8 +236,11 @@ pytdx的K线解码器会把原始4字节字段0解成`2^-127`。2026-10-15对
 `000001.SZ`与`600000.SH`的原生历史响应直接核验了2026-10-14尾盘字段：
 14:58/14:59已知零成交bar的raw volume和raw amount均为uint32 0，pytdx输出
 `5.877471754111438e-39`。客户端仅把这个精确值还原为0；其他正值不做阈值截断。
-若修正后volume为0而amount仍非0，该bar会拒绝并记录，不推造字段。旧Parquet行
-保持不变，历史重建必须有可复核来源。
+若修正后volume为0而amount仍非0，该bar保留原OHLC、volume和amount，并标记
+`amount_nonzero_with_zero_volume`软质量标志；落盘服务将标志及解码后的原生OHLCV
+写入同月SQLite的`minute_source_quality`账本，量敏感研究可按代码/日期/time_idx过滤。
+这类值不自动改为0量或推算零股成交量。价格域、有限性、OHLC关系、负量/负额等硬错误
+仍拒绝并记录。旧Parquet不会自动改写；历史修复必须有可复核来源。
 
 ---
 

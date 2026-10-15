@@ -53,9 +53,17 @@ def native_minute_bar_error(bar: Mapping[str, Any]) -> str | None:
         return "ohlc_low_above_component"
     if not float(bar["vol"]).is_integer():
         return "vol_not_integral_shares"
-    if float(bar["vol"]) == 0 and float(bar["amount"]) != 0:
-        return "amount_nonzero_with_zero_volume"
     return None
+
+
+def native_minute_bar_quality_flags(bar: Mapping[str, Any]) -> tuple[str, ...]:
+    """Return soft source-quality flags without altering an otherwise valid bar."""
+    flags = []
+    if float(bar["vol"]) == 0 and float(bar["amount"]) > 0:
+        flags.append("amount_nonzero_with_zero_volume")
+    for field in bar.get("decoder_corrections", ()):
+        flags.append(str(field))
+    return tuple(sorted(set(flags)))
 
 
 def correct_pytdx_zero_volume_sentinel(value: Any) -> Any:

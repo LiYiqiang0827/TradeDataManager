@@ -31,6 +31,8 @@ data_provider.py — 统一数据接入层(2026-09-17 新增)
 from __future__ import annotations
 
 import sys
+import json
+from collections import Counter
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Union
@@ -489,7 +491,7 @@ def get_oneMin(
     """
     from offlineDataManager.scripts.core.one_min_store import get_one_min
 
-    return get_one_min(
+    frame = get_one_min(
         ts_code=ts_code,
         ts_codes=ts_codes,
         trade_date=trade_date,
@@ -498,6 +500,41 @@ def get_oneMin(
         columns=columns,
         root=data_root,
     )
+    frame.attrs["quality_query"] = "get_oneMin_quality(trade_date=..., ts_code=...)"
+    if trade_date is not None:
+        quality = get_oneMin_quality(trade_date=trade_date, ts_codes=ts_codes,
+                                     ts_code=ts_code, data_root=data_root)
+        flag_sets = [json.loads(encoded) for encoded in quality["quality_flags"]] if not quality.empty else []
+        counts = Counter(flag for flags in flag_sets for flag in flags)
+        corrections = {key: value for key, value in sorted(counts.items())
+                       if key.startswith("pytdx_zero_") and key.endswith("_corrected")}
+        warnings = {key: value for key, value in sorted(counts.items()) if key not in corrections}
+        is_correction = lambda flag: flag.startswith("pytdx_zero_") and flag.endswith("_corrected")
+        frame.attrs["quality_summary"] = {
+            "trade_date": _to_yyyymmdd(trade_date),
+            "informational_decoder_correction_rows": sum(any(is_correction(flag) for flag in flags) for flags in flag_sets),
+            "soft_quality_warning_rows": sum(any(not is_correction(flag) for flag in flags) for flags in flag_sets),
+            "informational_decoder_corrections": corrections,
+            "soft_quality_warnings": warnings,
+            "query": "get_oneMin_quality(trade_date=..., ts_code=...)",
+        }
+    return frame
+
+
+def get_oneMin_quality(
+    trade_date: str,
+    ts_code: Optional[str] = None,
+    ts_codes: Optional[list] = None,
+    data_root: Optional[Union[str, Path]] = None,
+) -> pd.DataFrame:
+    """查询TDX原生1分钟Parquet的独立来源质量sidecar。"""
+    from offlineDataManager.scripts.core.tdx_one_min_store import get_one_min_quality
+
+    frame = get_one_min_quality(trade_date, ts_code=ts_code, root=data_root)
+    if ts_codes:
+        selected = {str(code).upper() for code in ts_codes}
+        frame = frame[frame["ts_code"].isin(selected)].reset_index(drop=True)
+    return frame
 
 
 def get_minute(

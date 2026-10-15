@@ -61,6 +61,29 @@ def test_remote_query_forces_database_only_and_returns_arrow(monkeypatch, capsys
     assert meta["source"] == "database_only" and meta["rows"] == 1 and not meta["empty"]
 
 
+def test_remote_minute_quality_summary_survives_arrow_metadata(monkeypatch):
+    from coreClient import data_provider
+
+    def fake_get_one_min(trade_date=None):
+        frame = pd.DataFrame({"ts_code": ["920000.BJ"], "vol": [0]})
+        frame.attrs["quality_summary"] = {
+            "trade_date": "20260922", "soft_quality_warning_rows": 1,
+            "soft_quality_warnings": {"amount_nonzero_with_zero_volume": 1},
+            "query": "get_oneMin_quality(trade_date=..., ts_code=...)",
+        }
+        return frame
+
+    fake_get_one_min.__module__ = data_provider.__name__
+    monkeypatch.setattr(data_provider, "get_oneMin", fake_get_one_min)
+    payload, _ = remote._run_remote_query({
+        "protocol": 1, "provider": "get_oneMin", "params": {"trade_date": "20260922"},
+    })
+    table = ipc.open_stream(pa.py_buffer(payload)).read_all()
+    metadata = json.loads(table.schema.metadata[b"trading-data-manager"])
+    assert metadata["quality_summary"]["soft_quality_warning_rows"] == 1
+    assert metadata["quality_summary"]["soft_quality_warnings"]["amount_nonzero_with_zero_volume"] == 1
+
+
 def test_remote_roundtrip_preserves_nullable_datetime_index(monkeypatch):
     from coreClient import data_provider
 

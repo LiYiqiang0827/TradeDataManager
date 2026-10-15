@@ -956,12 +956,18 @@ class OnlineRedis(RedisBase):
         for i, bar in enumerate(bars):
             time_idx = int(bar.get("time_idx", bar.get("bar_idx", i)))
             clean_bar = {
+                "source": bar.get("source"),
                 "time_idx": time_idx,
                 "datetime": bar.get("datetime") or bar.get("bar_time") or bar.get("time") or "",
                 "price": bar.get("price"),
                 "vol": bar.get("vol"),
                 "data_timestamp": bar.get("data_timestamp"),  # client 源头打的 wall-clock ISO 字符串
             }
+            if bar.get("quality_flags"):
+                clean_bar["quality_flags"] = list(bar["quality_flags"])
+                clean_bar["source_amount"] = bar.get("source_amount")
+                clean_bar["source_ohlc"] = bar.get("source_ohlc")
+                clean_bar["decoder_corrections"] = list(bar.get("decoder_corrections", ()))
             members_scores[self._encode(clean_bar)] = time_idx
 
         pipe = self.r.pipeline()

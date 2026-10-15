@@ -38,6 +38,7 @@ from core.sqlite_client import (
     count_snapshots,
     insert_snapshots_batch,
     insert_minute_bars_batch,
+    insert_minute_source_quality,
     read_cursor,
     update_cursor,
 )
@@ -429,13 +430,18 @@ def persist_minute(
     # 当日 (ts_code, trade_date, time_idx) 唯一键，导致后续正确 bar 被 INSERT OR IGNORE。
     expected_date = datetime.strptime(trade_date, "%Y%m%d").date().isoformat()
     snapshots = []
+    quality_records = []
     date_mismatch_counts: dict[str, int] = {}
     invalid_value_counts: dict[str, dict[str, int]] = {}
+    source_mismatch_counts: dict[str, int] = {}
     for ts_code in watchlist:
         bars = redis_client.get_minute_bars(ts_code)
         if not bars:
             continue
         for i, b in enumerate(bars):
+            if b.get("source") != "tdx_native_1min":
+                source_mismatch_counts[ts_code] = source_mismatch_counts.get(ts_code, 0) + 1
+                continue
             bar_datetime = b.get("datetime") or b.get("bar_time") or b.get("time") or ""
             try:
                 # Minute rows require a date and time; date-only strings are invalid here.
@@ -453,7 +459,7 @@ def persist_minute(
                 per_code = invalid_value_counts.setdefault(ts_code, {})
                 per_code[reason] = per_code.get(reason, 0) + 1
                 continue
-            snapshots.append({
+            snapshot = {
                 "ts_code": ts_code,
                 "trade_date": trade_date,
                 "time_idx": int(b.get("time_idx", b.get("bar_idx", i))),
@@ -461,7 +467,17 @@ def persist_minute(
                 "price": b.get("price"),
                 "vol": b.get("vol"),
                 "data_timestamp": b.get("data_timestamp"),  # client 源头 wall-clock ISO
-            })
+            }
+            snapshots.append(snapshot)
+            if b.get("quality_flags"):
+                quality_records.append({
+                    **snapshot,
+                    "quality_flags": b.get("quality_flags"),
+                    "source_amount": b.get("source_amount"),
+                    "source_ohlc": b.get("source_ohlc"),
+                    "decoder_corrections": b.get("decoder_corrections"),
+                    "source": b.get("source", "tdx_native_1min"),
+                })
 
     if date_mismatch_counts:
         logger.warning(
@@ -471,6 +487,13 @@ def persist_minute(
             expected_date,
             len(date_mismatch_counts),
             sum(date_mismatch_counts.values()),
+        )
+    if source_mismatch_counts:
+        logger.warning(
+            "[minute] skip bars with missing or unsupported source provenance: trade_date=%s stocks=%s bars=%s",
+            trade_date,
+            len(source_mismatch_counts),
+            sum(source_mismatch_counts.values()),
         )
     if invalid_value_counts:
         reason_totals: dict[str, int] = {}
@@ -496,6 +519,13 @@ def persist_minute(
             trade_date=trade_date,
             snapshots=snapshots,
         )
+        quality_written = insert_minute_source_quality(conn, quality_records) if inserted >= 0 else 0
+        if quality_written:
+            logger.warning(
+                "[minute] retained source-quality flagged bars with queryable ledger: trade_date=%s rows=%s",
+                trade_date,
+                quality_written,
+            )
         logger.info(
             f"[minute] 落盘 {inserted}/{len(snapshots)} 行到 {ym}/minute_{trade_date},"
             f"覆盖 {len(set((s['ts_code'],) for s in snapshots))} 只股票"

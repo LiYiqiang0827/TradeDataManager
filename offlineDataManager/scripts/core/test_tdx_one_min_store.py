@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,7 @@ import pytest
 from core.one_min_store import get_one_min
 from core.tdx_one_min_store import (
     finalize_tdx_one_min_day,
+    get_one_min_quality,
     normalize_existing_one_min_partitions,
     remove_one_min_partition,
     stage_tdx_one_min_batch,
@@ -101,6 +103,89 @@ def test_stage_and_finalize_tdx_partition(tmp_path: Path, monkeypatch) -> None:
     frame = get_one_min(trade_date="20260924", root=store)
     assert frame.groupby("ts_code")["time_idx"].apply(list).tolist() == [[0, 239], [0, 239]]
     assert set(frame["adj_factor"]) == {2.0, 3.0}
+
+
+def test_source_quality_sidecar_survives_stage_and_finalize(tmp_path: Path, monkeypatch) -> None:
+    from core import offline_db_client, tdx_one_min_store
+
+    stage = tmp_path / "stage"
+    store = tmp_path / "store"
+    catalog = tmp_path / "catalog.duckdb"
+    rows = _rows("000001.SZ")
+    rows[0].update({
+        "vol": 0, "amount": 100.31,
+        "quality_flags": ["amount_nonzero_with_zero_volume"],
+        "source": "tdx_native_1min",
+    })
+    stage_tdx_one_min_batch([{"rows": rows}], stage)
+    monkeypatch.setattr(offline_db_client, "get_basic", lambda *_a, **_k: pd.DataFrame({
+        "ts_code": ["000001.SZ"], "name": ["平安银行"],
+    }))
+    monkeypatch.setattr(offline_db_client, "get_day", lambda *_a, **_k: pd.DataFrame({
+        "ts_code": ["000001.SZ"], "trade_date": ["20260924"],
+    }))
+    factors = pd.DataFrame({"ts_code": ["000001.SZ"], "adj_factor": [2.0]})
+    monkeypatch.setattr(offline_db_client, "get_adj_factor", lambda *_a, **_k: factors)
+    monkeypatch.setattr(tdx_one_min_store, "_latest_adj_factor_reference", lambda *_a, **_k: factors)
+
+    original_replace = Path.replace
+
+    def fail_quality_sidecar(self, target):
+        if "_quality" in self.parts and self.name.endswith(".inprogress"):
+            raise OSError("simulated sidecar write failure")
+        return original_replace(self, target)
+
+    with pytest.MonkeyPatch.context() as failure_patch:
+        failure_patch.setattr(Path, "replace", fail_quality_sidecar)
+        with pytest.raises(OSError, match="simulated sidecar"):
+            finalize_tdx_one_min_day("20260924", stage, root=store, catalog_path=catalog)
+    manifest_path = store / "_manifest" / "trade_date=20260924.json"
+    assert json.loads(manifest_path.read_text())["status"] == "pending_quality_sidecar"
+
+    finalize_tdx_one_min_day("20260924", stage, root=store, catalog_path=catalog)
+    manifest = json.loads(manifest_path.read_text())
+    sidecar = store / "_quality" / "trade_date=20260924" / "part-000.parquet"
+    assert manifest["status"] == "ok"
+    assert manifest["quality_sidecar_rows"] == 1
+    assert manifest["quality_sidecar"] == str(sidecar)
+    assert manifest["quality_sidecar_sha256"] == hashlib.sha256(sidecar.read_bytes()).hexdigest()
+    quality = get_one_min_quality("20260924", ts_code="000001.SZ", root=store)
+    bars = get_one_min(trade_date="20260924", ts_code="000001.SZ", root=store)
+    assert len(quality) == 1
+    assert quality.iloc[0]["quality_flags"] == '["amount_nonzero_with_zero_volume"]'
+    assert len(quality.iloc[0]["source_payload_sha256"]) == 64
+    assert quality.iloc[0]["source"] == "tdx_native_1min"
+    assert bars.iloc[0]["vol"] == 0
+    assert bars.iloc[0]["amount"] == pytest.approx(100.31)
+
+
+def test_partial_finalize_keeps_only_quality_for_retained_codes(tmp_path: Path, monkeypatch) -> None:
+    from core import offline_db_client, tdx_one_min_store
+
+    store, catalog = tmp_path / "store", tmp_path / "catalog.duckdb"
+    first_stage = tmp_path / "stage-first"
+    initial = _full_rows("000001.SZ") + _full_rows("600000.SH")
+    for code in ("000001.SZ", "600000.SH"):
+        row = next(item for item in initial if item["ts_code"] == code and item["time_idx"] == 0)
+        row.update(vol=0, amount=6.0, quality_flags=["amount_nonzero_with_zero_volume"])
+    stage_tdx_one_min_batch([{"rows": initial}], first_stage)
+    monkeypatch.setattr(offline_db_client, "get_basic", lambda *_a, **_k: pd.DataFrame({
+        "ts_code": ["000001.SZ", "600000.SH"], "name": ["A", "B"],
+    }))
+    monkeypatch.setattr(offline_db_client, "get_day", lambda *_a, **_k: pd.DataFrame({
+        "ts_code": ["000001.SZ", "600000.SH"], "trade_date": ["20260924", "20260924"],
+    }))
+    factors = pd.DataFrame({"ts_code": ["000001.SZ", "600000.SH"], "adj_factor": [1.0, 1.0]})
+    monkeypatch.setattr(offline_db_client, "get_adj_factor", lambda *_a, **_k: factors)
+    monkeypatch.setattr(tdx_one_min_store, "_latest_adj_factor_reference", lambda *_a, **_k: factors)
+    finalize_tdx_one_min_day("20260924", first_stage, root=store, catalog_path=catalog)
+    assert len(get_one_min_quality("20260924", root=store)) == 2
+
+    second_stage = tmp_path / "stage-second"
+    stage_tdx_one_min_batch([{"rows": _full_rows("000001.SZ")}], second_stage)
+    finalize_tdx_one_min_day("20260924", second_stage, root=store, catalog_path=catalog)
+    remaining = get_one_min_quality("20260924", root=store)
+    assert remaining["ts_code"].tolist() == ["600000.SH"]
 
 
 def test_normalize_existing_partition_removes_0930_and_reindexes(tmp_path: Path) -> None:

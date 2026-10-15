@@ -1013,6 +1013,74 @@ def insert_snapshots_batch(
         return -1
 
 
+def insert_minute_source_quality(conn: sqlite3.Connection, records: list[dict]) -> int:
+    """Idempotently persist source-quality observations beside minute rows.
+
+    Soft flags never alter a bar's OHLC, volume, or amount. The separate table
+    lets callers retain the legacy minute schema while volume-sensitive readers
+    can identify affected keys and inspect the exact decoded source payload.
+    """
+    if not records:
+        return 0
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS minute_source_quality (
+            trade_date TEXT NOT NULL,
+            ts_code TEXT NOT NULL,
+            time_idx INTEGER NOT NULL,
+            datetime TEXT NOT NULL,
+            quality_code TEXT NOT NULL,
+            source TEXT NOT NULL,
+            source_payload_json TEXT NOT NULL,
+            source_timestamp TEXT,
+            detected_at TEXT NOT NULL,
+            PRIMARY KEY (trade_date, ts_code, time_idx, quality_code)
+        )
+        """
+    )
+    now = datetime.now().isoformat(timespec="milliseconds")
+    rows = []
+    for record in records:
+        payload = {
+            "price": record.get("price"),
+            "vol": record.get("vol"),
+            "amount": record.get("source_amount"),
+            "ohlc": record.get("source_ohlc"),
+            "decoder_corrections": record.get("decoder_corrections"),
+        }
+        for quality_code in sorted(set(record.get("quality_flags") or ())):
+            rows.append((
+                record["trade_date"],
+                record["ts_code"],
+                int(record["time_idx"]),
+                record["datetime"],
+                quality_code,
+                record.get("source", "tdx_native_1min"),
+                json.dumps(payload, ensure_ascii=False, allow_nan=False, sort_keys=True),
+                record.get("data_timestamp"),
+                now,
+            ))
+    if not rows:
+        return 0
+    conn.executemany(
+        """
+        INSERT INTO minute_source_quality (
+            trade_date, ts_code, time_idx, datetime, quality_code, source,
+            source_payload_json, source_timestamp, detected_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(trade_date, ts_code, time_idx, quality_code) DO UPDATE SET
+            datetime=excluded.datetime,
+            source=excluded.source,
+            source_payload_json=excluded.source_payload_json,
+            source_timestamp=excluded.source_timestamp,
+            detected_at=excluded.detected_at
+        """,
+        rows,
+    )
+    conn.commit()
+    return len(rows)
+
+
 def insert_minute_bars_batch(
     conn: sqlite3.Connection,
     *,

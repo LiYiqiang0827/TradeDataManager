@@ -26,6 +26,7 @@ SOURCE_PROVIDERS = {
 }
 DATABASE_ONLY_PROVIDERS = {
     "get_oneMin": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date", "columns"},
+    "get_oneMin_quality": {"trade_date", "ts_code", "ts_codes"},
     "get_fifteenMin": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date", "columns"},
 }
 PROVIDER_PARAMS = {**SOURCE_PROVIDERS, **DATABASE_ONLY_PROVIDERS}
@@ -112,7 +113,8 @@ def _run_remote_query(request: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
     metadata = dict(table.schema.metadata or {})
     metadata[b"trading-data-manager"] = json.dumps(
         {"protocol": _PROTOCOL_VERSION, "provider": provider, "source": source,
-         "rows": rows, "empty": rows == 0},
+         "rows": rows, "empty": rows == 0,
+         "quality_summary": result.attrs.get("quality_summary")},
         separators=(",", ":"),
     ).encode("utf-8")
     table = table.replace_schema_metadata(metadata)
@@ -200,6 +202,9 @@ class RemoteProvider:
             "remote_source": "database_only",
             "remote_empty": table.num_rows == 0,
         })
+        if isinstance(meta.get("quality_summary"), dict):
+            frame.attrs["quality_summary"] = meta["quality_summary"]
+            frame.attrs["quality_query"] = meta["quality_summary"].get("query")
         if require_nonempty and table.num_rows == 0:
             raise EmptyRemoteResult(f"remote {provider} query returned zero rows")
         return frame

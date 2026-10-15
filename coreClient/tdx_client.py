@@ -63,6 +63,7 @@ from coreClient.tdx_config import (
 from coreClient.minute_validation import (
     correct_pytdx_zero_volume_sentinel,
     native_minute_bar_error,
+    native_minute_bar_quality_flags,
 )
 
 logger = logging.getLogger("tdx_client")
@@ -296,15 +297,22 @@ class TdxClient:
             if datetime.fromisoformat(bar["datetime"]) >= last_completed_minute:
                 forming_or_future += 1
                 continue
-            out.append({
+            row = {
                 "ts_code": ts_code,
+                "source": "tdx_native_1min",
                 "trade_date": bar["trade_date"],
                 "datetime": bar["datetime"],
                 "time_idx": bar["time_idx"],
                 "price": bar["close"],
                 "vol": int(bar["vol"]),
                 "data_timestamp": ts_iso,
-            })
+            }
+            if bar.get("quality_flags"):
+                row["quality_flags"] = list(bar["quality_flags"])
+                row["source_amount"] = bar["amount"]
+                row["source_ohlc"] = {field: bar[field] for field in ("open", "high", "low", "close")}
+                row["decoder_corrections"] = list(bar.get("decoder_corrections", ()))
+            out.append(row)
         if forming_or_future:
             logger.warning(
                 "[minute] skipped forming or future native bars ts_code=%s count=%s cutoff=%s",
@@ -338,17 +346,24 @@ class TdxClient:
             失败时返回空 list
         """
         rows = self.download_one_minute(ts_code, trade_date=int(date), max_pages=40)
-        return [
-            {
+        result = []
+        for bar in rows:
+            row = {
                 "ts_code": ts_code,
+                "source": "tdx_native_1min",
                 "trade_date": bar["trade_date"],
                 "datetime": bar["datetime"],
                 "time_idx": bar["time_idx"],
                 "price": bar["close"],
                 "vol": int(bar["vol"]),
             }
-            for bar in rows
-        ]
+            if bar.get("quality_flags"):
+                row["quality_flags"] = list(bar["quality_flags"])
+                row["source_amount"] = bar["amount"]
+                row["source_ohlc"] = {field: bar[field] for field in ("open", "high", "low", "close")}
+                row["decoder_corrections"] = list(bar.get("decoder_corrections", ()))
+            result.append(row)
+        return result
 
     def download_one_minute(
         self,
@@ -396,6 +411,7 @@ class TdxClient:
         code = code_of(ts_code)
         selected: dict[str, dict] = {}
         rejected: dict[str, int] = {}
+        quality_flag_counts: dict[str, int] = {}
         duplicate_count = 0
         conflicting_duplicate_count = 0
         reached_history_end = False
@@ -442,8 +458,18 @@ class TdxClient:
                     time_idx = 120 + hour * 60 + minute - (13 * 60 + 1)
                 label = f"{hour:02d}:{minute:02d}"
                 dt_key = f"{row_date:08d} {label}"
+                decoded_volume = float(row["vol"])
+                decoded_amount = float(row["amount"])
+                corrected_volume = correct_pytdx_zero_volume_sentinel(decoded_volume)
+                corrected_amount = correct_pytdx_zero_volume_sentinel(decoded_amount)
+                decoder_corrections = []
+                if corrected_volume != decoded_volume:
+                    decoder_corrections.append("pytdx_zero_volume_sentinel_corrected")
+                if corrected_amount != decoded_amount:
+                    decoder_corrections.append("pytdx_zero_amount_sentinel_corrected")
                 native_bar = {
                     "ts_code": ts_code,
+                    "source": "tdx_native_1min",
                     "trade_date": _date_int_to_str(row_date),
                     "datetime": (
                         f"{row_date // 10000:04d}-{row_date // 100 % 100:02d}-"
@@ -454,13 +480,19 @@ class TdxClient:
                     "high": float(row["high"]),
                     "low": float(row["low"]),
                     "close": float(row["close"]),
-                    "vol": float(correct_pytdx_zero_volume_sentinel(row["vol"])),
-                    "amount": float(correct_pytdx_zero_volume_sentinel(row["amount"])),
+                    "vol": float(corrected_volume),
+                    "amount": float(corrected_amount),
+                    "decoder_corrections": decoder_corrections,
                 }
                 reason = native_minute_bar_error(native_bar)
                 if reason:
                     rejected[reason] = rejected.get(reason, 0) + 1
                     continue
+                quality_flags = native_minute_bar_quality_flags(native_bar)
+                if quality_flags:
+                    native_bar["quality_flags"] = quality_flags
+                    for flag in quality_flags:
+                        quality_flag_counts[flag] = quality_flag_counts.get(flag, 0) + 1
                 previous = selected.get(dt_key)
                 if previous is not None:
                     duplicate_count += 1
@@ -498,6 +530,12 @@ class TdxClient:
                 "download_one_minute rejected invalid OHLCV bars ts_code=%s reasons=%s",
                 ts_code,
                 rejected,
+            )
+        if quality_flag_counts:
+            logger.warning(
+                "download_one_minute retained source-quality flagged bars ts_code=%s flags=%s",
+                ts_code,
+                quality_flag_counts,
             )
         if duplicate_count:
             logger.warning(

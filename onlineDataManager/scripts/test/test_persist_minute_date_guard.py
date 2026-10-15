@@ -65,6 +65,7 @@ def _install_memory_sqlite(monkeypatch):
 
 def _bar(dt: str | None, idx: int = 0) -> dict:
     return {
+        "source": "tdx_native_1min",
         "time_idx": idx,
         "datetime": dt,
         "price": 10.0 + idx,
