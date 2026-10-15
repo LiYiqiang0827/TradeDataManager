@@ -57,6 +57,12 @@ def _now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def _waiting_for_first_completed_bar(now: datetime | None = None) -> bool:
+    """Keep the normal opening wait distinct until the 09:31 bar is complete."""
+    local_now = (now or datetime.now().astimezone()).astimezone()
+    return local_now.strftime("%H:%M") < "09:32"
+
+
 def _meta_int(redis_client: OnlineRedis, key: str) -> int:
     try:
         return int(redis_client.get_meta(key) or 0)
@@ -97,7 +103,7 @@ def _new_tdx_client(redis_client: OnlineRedis) -> TdxClient:
     raise RuntimeError(error)
 
 
-def probe_minute_source(client: TdxClient) -> dict[str, Any]:
+def probe_minute_source(client: TdxClient, *, now: datetime | None = None) -> dict[str, Any]:
     """Exercise configured native raw/getter paths without writing Redis data.
 
     Raw history is checked separately from today's live getter because a service
@@ -137,6 +143,9 @@ def probe_minute_source(client: TdxClient) -> dict[str, Any]:
     elif errors:
         status = "preflight_partial"
         error = "; ".join(f"{key}={value}" for key, value in sorted(errors.items()))
+    elif not getter_available and _waiting_for_first_completed_bar(now):
+        status = "waiting_first_completed_bar"
+        error = "native history is available; current getter is empty before the first completed morning bar"
     elif not getter_available:
         status = "degraded_current_getter_empty"
         error = "native raw probe works but current-day getter returned no bars; cause unknown"
@@ -164,6 +173,7 @@ def process_minute_round(
     client: TdxClient,
     *,
     log: logging.Logger | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Fetch and record one round, keeping empty data distinct from success."""
     log = log or logging.getLogger("minute_loop")
@@ -203,7 +213,8 @@ def process_minute_round(
         log.warning("minute round skipped: watchlist empty; source health unknown")
         return {"status": "no_watchlist", "watchlist": 0, "written": 0, "error": ""}
 
-    now_iso = datetime.now().astimezone().isoformat(timespec="milliseconds")
+    now = (now or datetime.now().astimezone()).astimezone()
+    now_iso = now.isoformat(timespec="milliseconds")
     written = 0
     empty_count = 0
     failures: list[str] = []
@@ -222,8 +233,20 @@ def process_minute_round(
             log.error("分时 %s 失败: %s", ts_code, exc)
 
     previous_streak = _meta_int(redis_client, "minute_zero_write_streak")
-    streak = previous_streak + 1 if written == 0 else 0
-    if written == 0 and failures:
+    native_counts = redis_client.get_meta("minute_preflight_native_history_counts") or {}
+    native_history_available = isinstance(native_counts, dict) and any(
+        isinstance(count, (int, float)) and count > 0 for count in native_counts.values()
+    )
+    waiting = (
+        written == 0 and not failures and native_history_available
+        and _waiting_for_first_completed_bar(now)
+    )
+    streak = previous_streak + 1 if written == 0 and not waiting else 0 if written else previous_streak
+    if waiting:
+        status = "waiting_first_completed_bar"
+        error = "native history is available; no completed current-session bar is expected yet"
+        detail = f"all {len(watchlist)} symbols empty before first completed morning bar; errors=0"
+    elif written == 0 and failures:
         status = "degraded_source_errors"
         error = "; ".join(failures[:8])
         detail = f"all {len(watchlist)} symbols unwritten; empty={empty_count}; errors={len(failures)}"

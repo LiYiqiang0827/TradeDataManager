@@ -1,5 +1,6 @@
 import logging
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 from service import service_writeredis_minute as service
@@ -122,6 +123,38 @@ class MinuteServiceHealthTests(unittest.TestCase):
         self.assertEqual(second["zero_write_streak"], 2)
         self.assertEqual(redis.meta["minute_zero_write_streak"], 2)
         self.assertEqual(redis.meta["minute_last_round"], 2)
+
+    def test_opening_wait_is_not_degraded_or_counted_as_zero_write_streak(self):
+        client = FakeTdx(
+            raw={"000001.SZ": one_bar("000001.SZ")},
+            live={},
+        )
+        redis = FakeRedis(["000001.SZ", "600000.SH"])
+        cases = (
+            ("09:29", "waiting_first_completed_bar"),
+            ("09:31", "waiting_first_completed_bar"),
+            ("09:32", "degraded_current_getter_empty"),
+        )
+        for hhmm, expected in cases:
+            with self.subTest(time=hhmm), patch.object(service, "TDX_IP_POOL", [("p", 7709)]), patch.object(
+                service, "TDX_HISTORY_BAR_IP_POOL", [("f", 7709)]
+            ):
+                now = datetime.fromisoformat(f"2026-10-15T{hhmm}:00+08:00")
+                preflight = service.probe_minute_source(client, now=now)
+                self.assertEqual(preflight["status"], expected)
+                redis.meta["minute_preflight_native_history_counts"] = preflight["native_history_counts"]
+                redis.meta["minute_zero_write_streak"] = 0
+                result = service.process_minute_round(redis, client, log=self.log, now=now)
+                if hhmm < "09:32":
+                    self.assertEqual(result["status"], "waiting_first_completed_bar")
+                    self.assertEqual(result["zero_write_streak"], 0)
+                    self.assertEqual(
+                        redis.meta["minute_current_error"],
+                        "native history is available; no completed current-session bar is expected yet",
+                    )
+                else:
+                    self.assertEqual(result["status"], "degraded_empty_source_unknown")
+                    self.assertEqual(result["zero_write_streak"], 1)
 
     def test_no_watchlist_is_distinct_and_clears_stale_error_without_success(self):
         redis = FakeRedis([])
