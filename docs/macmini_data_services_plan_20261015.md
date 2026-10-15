@@ -55,19 +55,22 @@ Mac mini可能拥有本机没有的近期在线记录，不能用本机副本直
 
 - 用户已明确授权停写、切换和恢复。两端旧调度器及确认归属的worker已退出，SQLite完成checkpoint；新采集链尚未启动。Mac mini共享Redis 6379保持原样，新TDM使用独立6380，禁止恢复旧分钟Redis载荷。
 - 交易日历沿用 `db_cn_basic.tbl_cn_tradecal`，已通过既有Tushare配置补至2015-01-01—2026-12-31，SSE/SZSE共8764行；10月15、16日均开市。新增调度器日历防护与滚动刷新工具，缺失或无效日历时停止采集，20项隔离测试通过，等待发布部署。
-- 9月22日全市场一分钟回补已隔离下载5554只、1332960根，240根/股、键与时间格完整；尚待正式分区晋升。4只首根09:31开盘与日线开盘差异单列口径；2只北交所股票的TDX日/分钟量额与Tushare日线有差异，另9只TDX日/分钟金额合计不一致，均保留原值和来源证据，不宣称所有字段跨源一致。
+- 9月22日全市场一分钟回补已正式晋升：5554只、1332960根，240根/股，键与时间格完整；manifest、质量sidecar及catalog已登记。4只首根09:31开盘与日线开盘差异单列口径；2只北交所股票的TDX日/分钟量额与Tushare日线有差异，另9只TDX日/分钟金额合计不一致，均保留原值和来源证据，不宣称所有字段跨源一致。
 - 在线历史分钟表已在完整备份和逐表逻辑哈希一致后按日事务重建多数开市日期，休市日分钟表清空并保留原始档案。9月22日与10月15日仍待可信源补齐；少量历史观察码无源，记录缺口，不回灌旧解码值。
 - Mac mini初传仍是未验收staging。最终增量、独有数据合并、正式路径切换、真实远程接口验收及服务启动均待完成；过去迁移指纹不能代替本次验收。
 - Mini现有环境未发现Tushare token。复制本机指定token到Mini ignored `.env` 被自动审批拒绝，现已向用户就这一项凭据及具体目标路径请求明确授权；授权前不复制。在线不依赖该凭据的链路可以继续准备。
 - 优先在12:40前具备一条经过修复的下午在线采集链。历史Parquet精确零哨兵清洗、所有SQLite/DuckDB逐表深审与legacy tick查询可随后继续，不能因此延迟下午采集，也不能提前标记整体完成。
 
+## 午后实际接管与尚未完成项（13:20更新）
 
-## 2026-10-15 9/22回补晋升实况（12:29更新）
-
-- 受控停写及checkpoint在11:45完成。9/22使用TDX原生1分钟源，对当日离线日线集合5554只逐股暂存并验证，每股240根，合计1332960根；时间格为09:31—11:30、13:01—15:00，重复键、负量价、空值均为0。
-- 9/22已正式晋升至`TradingDatabase/offline/oneMinute/parquet/schema_v2/year=2026/month=09/trade_date=20260922/part-000.parquet`；质量sidecar、manifest与`oneMinute/catalog.duckdb`登记成功。manifest状态`ok`，source为TDX，5554只均为TDX来源，无CSV回退。
-- 原始分钟值与sidecar均保留。质量sidecar有51022条记录：volume哨兵纠正标记51022、amount哨兵纠正标记50771、volume为0但amount普通正数251；raw payload哈希全部匹配。该251类仅保留OHLC和原值，未补0或删除。
-- 日线对照例外不掩盖：4只股票09:31首根open与Tushare日open相差0.01—0.07，TDX日线open与Tushare日线一致，分钟网格没有09:30；2只北交所股票的Tushare日量额与分钟聚合明显不一致，但TDX category-9日线与分钟聚合接近；另9只北交所分钟amount合计比TDX日线高398—1913元，约0.012%—0.025%，明显大于逐bar float32舍入上界，原因未定。源值均保留，9只差异须作为day/code级质量项继续提供查询，不应标成逐bar损坏。
-- 以上质量分项、13只category-9抽查、源哈希和晋升回执保存在受控临时验收目录；完整审计报告及质量查询对428个旧历史日的覆盖状态仍在补齐，缺sidecar不得显示为“0异常”。
-- 交易日历守卫与刷新工具已以TDM commit`3bb1c771f59a61bce6fd72b229bb63efb2de5e1`发布，Mac mini已拉取该commit；20项隔离日历、刷新及生命周期测试通过。
-- 10/15的119只停写时点输入暂存、remote DataFrame接口扩展、缺失历史日quality coverage状态、legacy policy SQLite来源审计及所有其他数据库/Parquet深审仍待完成。Mini数据切换、远程接口验收及下午采集链恢复不能据此标记完成。
+- Mac mini正式数据根目录已切至 `/Users/nickzhang/TradingDatabase`。10月在线库以Mini原库保留非分钟数据，再替换本机已修复的分钟表；9月初传副本暂隔离，尚待同样合并，不作为可用历史在线库。
+- 新在线调度器13:01:06首次启动。分钟模块因Mini私有配置的 `TDX_HISTORY_BAR_IP_POOL` 为空，首次连接的quote服务器没有原生K线返回；没有恢复旧分时decoder，而是以只读实测成功的 `shtdx.gtjas.com:7709` 补齐公开端点配置，再通过父调度器优雅重启受管子进程。
+- 首次成功分钟采集为13:07:10，此后多轮为73/73只。Mini新Redis 6380与共享6379分离；抽样原生bar→Redis→SQLite的价格、股数成交量、分钟标签相同。分钟存储为ZSET，不能误用stream cursor规则解释它。
+- 13:00至首次实际采集存在缺口。之后获取历史bar是回补，不把采集时间改写为当时已采；其他在线family也以各自首个有效capture时间记录缺口。启动成功不等于全交易日采集覆盖通过。
+- 本机自属 `com.tradingagent.redis` 已停止、禁用自启，6379无监听，原持久化文件保留；本机旧offline/online调度器仍禁用。Mini共享6379未停止或修改。
+- 根agent从本机经SSH Arrow接口真实查询Mini正式库：9月22日000001.SZ日线1行、完整1分钟240行、15分钟16行，均为 `database_only`，分钟质量元信息保留。该接口验收不能代替全库源正确性验收。
+- 9月22日canonical分钟分区已正式晋升至 `TradingDatabase/offline/oneMinute/parquet/schema_v2/year=2026/month=09/trade_date=20260922/part-000.parquet`，5554只、1332960根、每股240根，manifest、sidecar和catalog均已登记。4只首根09:31 open与Tushare日open差0.01—0.07；2只北交所Tushare日量额与TDX聚合明显不同，但TDX category-9日线与分钟聚合接近；另9只北交所分钟amount比TDX日线高398—1913元（约0.012%—0.025%），原因未定，需作为day/code级质量项提供查询。原值保留，不推断为逐bar损坏。sidecar原始值哈希匹配；251条volume=0且amount为普通正值的bar保留OHLC和源值，不补0、不删bar。质量分项、历史428日sidecar coverage仍需持续审计，manifest `ok`不代表所有经济字段均已跨源确认。
+- Mini独有legacy tick与minute原件已保护到 `offline/legacy/policy_ticks_v1.db`（5,242,372,096字节）和 `policy_minute_v1.db`（1,373,429,760字节），原备份保留。TradingAgent旧dirty树完整保留为 `TradingAgent.archive_20261015_pre_cutover`，clean stage已接为正式TradingAgent，旧输出与报告通过本机私有链接继续可用。
+- 离线调度器仍暂停，等待特定Tushare凭据复制授权。分钟健康、15:01–15:06收盘补齐窗口及父进程内子服务存活检查已通过定向隔离测试，TDM提交 8844cf4 与开盘首根等待修正 40f51e8 已形成，等待Mini拉取、受管重启及运行态核验；提交本身不代表已部署。健康状态区分09:29/09:31等待首根完成与09:32后全空降级。
+- 深审进度：7个持久DuckDB共63表、103812018行完成结构与已定义关系扫描；39个offline SQLite实际表已列清单并完成计数，basic完整性检查ok。旧CSV15m有短组，题材图有股票维表引用缺口；旧policy分时与原生OHLC存在量纲/采样差异，不能等同处理。这些问题尚待分类解决，不能标记整体数据质量通过。
+- 正在准备107个Parquet分区的精确零哨兵纠正及质量sidecar覆盖；只修已证明字段，不改普通正金额/零成交量bar。全部完成后再补同步Mini并更新每表接受状态。
