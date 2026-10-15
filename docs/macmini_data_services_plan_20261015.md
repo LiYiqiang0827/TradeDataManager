@@ -44,8 +44,30 @@ Mac mini可能拥有本机没有的近期在线记录，不能用本机副本直
 - Mac mini数据初传进入独立staging并标记未冻结/不可用于服务。远端dirty文件51项共6.6GB已另存并逐文件校验；其较大的tick历史必须保留，不能被本机28KB的空/小库覆盖。
 - Mac mini原Homebrew Redis当前连接来自TradingAgent，但不能证明其他应用未来不会共用；新TDM使用独立端口/目录，旧实例及文件保留，不flushall。
 - 初传完成：10:59:55–11:35:37，35分42秒，发送约39.08GB；rsync exit24因活跃Redis rewrite时旧AOF消失，SQLite/Parquet也未经冻结。暂存数据不得作为正式有效快照或直接恢复Redis。
-- 11:35以后自动审批曾拒绝停止Mac mini现役采集服务；用户随后明确授权按计划范围停写、切换和恢复。Deployment 已继续受控freeze；本计划更新时仍等待其报告writer清零、checkpoint与source fingerprint READY，之后才能执行正式数据切换或生产修复事务。此前本机scheduler标签已卸载但曾有孤儿worker；Mac mini原scheduler及worker的清理状态以deployment最终回执为准。隔离源核对、定向测试和临时staging可继续。
+- 11:35以后停写审批受阻：自动审批拒绝停止Mac mini现役采集服务，要求用户直接授权该具体中断窗口，禁止替代路径绕过。已向用户异步请求明确授权；当前本机scheduler标签已卸载但仍有归属online的孤儿worker，Mac mini原scheduler及worker仍在。不是freeze READY；未checkpoint、未开展生产修复事务。源核对、隔离测试和暂存资料工作可继续。
+- 用户随后已直接回复“授权按上述范围停写、切换和恢复”；根agent已要求部署执行者继续同一受控流程，仍须实际证明writer退出和checkpoint完成后才进入生产修复。12:40为下午单链恢复准备检查点，授权不等于切换已完成。
 - 源解码补证：真实包的volume/amount uint32为0时，pytdx误解为精确`2^-127`，批准对这一已证明哨兵纠为0；全Parquet发现amount哨兵4580454行，另24667行是volume=0而普通正amount。后一类可能涉及源端量化/零股精度，不能擅自改字段或删除整根OHLC；需保留可信价格、原始字段和可查询的质量异常记录。
 - 原生9/22三只股票样本证实SH/SZ/BJ都有返回；强拒绝zero-volume/nonzero-amount会丢BJ一根bar，样本719/720暂不完整，不得promotion。待质量标记方案完成后重验。
 
 完成记录和最终分母以执行回执更新，不能仅凭本计划判定完成。
+
+## 2026-10-15 午休切换进度（12:26更新）
+
+- 用户已明确授权停写、切换和恢复。两端旧调度器及确认归属的worker已退出，SQLite完成checkpoint；新采集链尚未启动。Mac mini共享Redis 6379保持原样，新TDM使用独立6380，禁止恢复旧分钟Redis载荷。
+- 交易日历沿用 `db_cn_basic.tbl_cn_tradecal`，已通过既有Tushare配置补至2015-01-01—2026-12-31，SSE/SZSE共8764行；10月15、16日均开市。新增调度器日历防护与滚动刷新工具，缺失或无效日历时停止采集，20项隔离测试通过，等待发布部署。
+- 9月22日全市场一分钟回补已隔离下载5554只、1332960根，240根/股、键与时间格完整；尚待正式分区晋升。4只首根09:31开盘与日线开盘差异单列口径；2只北交所股票的TDX日/分钟量额与Tushare日线有差异，另9只TDX日/分钟金额合计不一致，均保留原值和来源证据，不宣称所有字段跨源一致。
+- 在线历史分钟表已在完整备份和逐表逻辑哈希一致后按日事务重建多数开市日期，休市日分钟表清空并保留原始档案。9月22日与10月15日仍待可信源补齐；少量历史观察码无源，记录缺口，不回灌旧解码值。
+- Mac mini初传仍是未验收staging。最终增量、独有数据合并、正式路径切换、真实远程接口验收及服务启动均待完成；过去迁移指纹不能代替本次验收。
+- Mini现有环境未发现Tushare token。复制本机指定token到Mini ignored `.env` 被自动审批拒绝，现已向用户就这一项凭据及具体目标路径请求明确授权；授权前不复制。在线不依赖该凭据的链路可以继续准备。
+- 优先在12:40前具备一条经过修复的下午在线采集链。历史Parquet精确零哨兵清洗、所有SQLite/DuckDB逐表深审与legacy tick查询可随后继续，不能因此延迟下午采集，也不能提前标记整体完成。
+
+
+## 2026-10-15 9/22回补晋升实况（12:29更新）
+
+- 受控停写及checkpoint在11:45完成。9/22使用TDX原生1分钟源，对当日离线日线集合5554只逐股暂存并验证，每股240根，合计1332960根；时间格为09:31—11:30、13:01—15:00，重复键、负量价、空值均为0。
+- 9/22已正式晋升至`TradingDatabase/offline/oneMinute/parquet/schema_v2/year=2026/month=09/trade_date=20260922/part-000.parquet`；质量sidecar、manifest与`oneMinute/catalog.duckdb`登记成功。manifest状态`ok`，source为TDX，5554只均为TDX来源，无CSV回退。
+- 原始分钟值与sidecar均保留。质量sidecar有51022条记录：volume哨兵纠正标记51022、amount哨兵纠正标记50771、volume为0但amount普通正数251；raw payload哈希全部匹配。该251类仅保留OHLC和原值，未补0或删除。
+- 日线对照例外不掩盖：4只股票09:31首根open与Tushare日open相差0.01—0.07，TDX日线open与Tushare日线一致，分钟网格没有09:30；2只北交所股票的Tushare日量额与分钟聚合明显不一致，但TDX category-9日线与分钟聚合接近；另9只北交所分钟amount合计比TDX日线高398—1913元，约0.012%—0.025%，明显大于逐bar float32舍入上界，原因未定。源值均保留，9只差异须作为day/code级质量项继续提供查询，不应标成逐bar损坏。
+- 以上质量分项、13只category-9抽查、源哈希和晋升回执保存在受控临时验收目录；完整审计报告及质量查询对428个旧历史日的覆盖状态仍在补齐，缺sidecar不得显示为“0异常”。
+- 交易日历守卫与刷新工具已以TDM commit`3bb1c771f59a61bce6fd72b229bb63efb2de5e1`发布，Mac mini已拉取该commit；20项隔离日历、刷新及生命周期测试通过。
+- 10/15的119只停写时点输入暂存、remote DataFrame接口扩展、缺失历史日quality coverage状态、legacy policy SQLite来源审计及所有其他数据库/Parquet深审仍待完成。Mini数据切换、远程接口验收及下午采集链恢复不能据此标记完成。
