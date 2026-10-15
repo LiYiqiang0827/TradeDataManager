@@ -99,7 +99,11 @@ def fetch_zt_quality(trade_date: str) -> dict[str, Any]:
             "fields": ["is_st", "is_new"],
             "warning": "Only 5,000 source-matched keys were observed; 6,591 existing rows had no matching source coverage. Do not use the full-day flags for historical ST filtering.",
             "source_matched_rows_observed": 5000,
+            "source_repaired_rows_observed": 5000,
+            "timestamp_normalized_rows_observed": 2313,
             "unverified_rows_observed": 6591,
+            "repair_receipt": "~/.local/share/TradingDataManager/data_governance/20261015/event_time_flag_repair_20261015T162020+0800/result.json",
+            "repair_receipt_sha256": "d1257bd68957e5dc4e0c58b85caf746335af2dabe64fe969078fb9b0659777ec",
             "audit_reference": "docs/online_zt_flag_quality_20261015.md",
         }
     return {

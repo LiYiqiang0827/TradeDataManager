@@ -117,7 +117,10 @@ def test_zt_partial_day_reports_observed_source_coverage_not_full_verification()
 
     assert result["status"] == "partial_source_coverage"
     assert result["source_matched_rows_observed"] == 5000
+    assert result["source_repaired_rows_observed"] == 5000
+    assert result["timestamp_normalized_rows_observed"] == 2313
     assert result["unverified_rows_observed"] == 6591
+    assert result["repair_receipt_sha256"] == "d1257bd68957e5dc4e0c58b85caf746335af2dabe64fe969078fb9b0659777ec"
     assert "observed" in result["warning"]
 
 

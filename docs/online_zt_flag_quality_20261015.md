@@ -26,7 +26,7 @@ A Redis string-decoding defect converted string values such as `"False"` to inte
 
 Those 15 dates contain 333,588 rows. Historical source evidence is unavailable to reconstruct the original flags, so consumers must not use these values for historical ST filtering.
 
-On 2026-10-15, the table had 11,591 rows. An audit observed source matches for 5,000 keys; 6,591 rows had no matching source coverage. This records observed coverage, not a claim that every source-matched value has been verified in the current database. Treat the whole day's flags as partial and unsuitable for full-day historical ST filtering until a dated repair receipt establishes the stored state.
+On 2026-10-15, the table had 11,591 rows. The retained 6380 stream matched 5,000 keys. A dated repair transaction corrected both flags for those 5,000 rows; 2,313 matching rows also had their event timestamps normalized. The remaining 6,591 rows had no retained-source coverage and remain unverified. Treat the whole day's flags as partial and unsuitable for full-day historical ST filtering. The repair receipt is `~/.local/share/TradingDataManager/data_governance/20261015/event_time_flag_repair_20261015T162020+0800/result.json` (SHA-256 `d1257bd68957e5dc4e0c58b85caf746335af2dabe64fe969078fb9b0659777ec`).
 
 Dates outside this recorded scope are `not_assessed`; absence from the list does not certify their flags.
 
@@ -34,4 +34,4 @@ Dates outside this recorded scope are `not_assessed`; absence from the list does
 
 The Redis-to-SQLite decoder now parses string booleans explicitly. Recognized true/false and 0/1 values retain their meaning; null, blank, unknown, non-finite, and out-of-domain values become SQL NULL, with a warning for unsupported values. This prevents the same string-truthiness defect on new writes. It does not repair historical rows.
 
-The persistent data governance directory for the 2026-10-15 audit is `~/.local/share/TradingDataManager/data_governance/20261015/audits/`. The relevant table-level status should be kept in a dated repair/audit receipt there; this document is the code-facing warning contract. Do not infer a successful historical repair from this warning metadata alone.
+The persistent data governance directory for the 2026-10-15 audit is `~/.local/share/TradingDataManager/data_governance/20261015/audits/`; the dated repair receipt above is the evidence for the partial same-day correction. This document is the code-facing warning contract. Do not infer a complete day repair from the 5,000 corrected rows.
