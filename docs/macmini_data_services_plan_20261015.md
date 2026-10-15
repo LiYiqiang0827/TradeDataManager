@@ -38,5 +38,14 @@ Mac mini可能拥有本机没有的近期在线记录，不能用本机副本直
 
 - 2026-10-15 10:53：已分派三个Luna执行者；本机online仍有活动worker，尚未停写或修写生产数据。开始代码发布、逐表审计和Mac mini预检。
 - 迁移前已知问题：20260922一分钟分区缺失；10/13、10/14在线minute有错日行；auction turnover空值的来源语义待确认。
+- 初次发布：TDM的origin已按用户指定地址配置并正常上传，初始发布commit为`839ca13`。
+- 扩大审计发现：23张online分钟表共662428行，其中17张表有403680行错日；23张表均有负价格/负量，当前10/15也出现。此为运行中初查，修复前须冻结重计。
+- 只读同连接源复现：旧`get_minute_time_data`的整组价格/成交量解码不可信，不只是个别负值；TDX原生1m bars末价与quote一致，按股统计的原生volume合计与quote手数×100对应，amount同为元。决定替换实时及历史minute入口，先核全日与现有Parquet一致、未完成bar及分钟端点；不能通过过滤负值就宣称修好。
+- Mac mini数据初传进入独立staging并标记未冻结/不可用于服务。远端dirty文件51项共6.6GB已另存并逐文件校验；其较大的tick历史必须保留，不能被本机28KB的空/小库覆盖。
+- Mac mini原Homebrew Redis当前连接来自TradingAgent，但不能证明其他应用未来不会共用；新TDM使用独立端口/目录，旧实例及文件保留，不flushall。
+- 初传完成：10:59:55–11:35:37，35分42秒，发送约39.08GB；rsync exit24因活跃Redis rewrite时旧AOF消失，SQLite/Parquet也未经冻结。暂存数据不得作为正式有效快照或直接恢复Redis。
+- 11:35以后自动审批曾拒绝停止Mac mini现役采集服务；用户随后明确授权按计划范围停写、切换和恢复。Deployment 已继续受控freeze；本计划更新时仍等待其报告writer清零、checkpoint与source fingerprint READY，之后才能执行正式数据切换或生产修复事务。此前本机scheduler标签已卸载但曾有孤儿worker；Mac mini原scheduler及worker的清理状态以deployment最终回执为准。隔离源核对、定向测试和临时staging可继续。
+- 源解码补证：真实包的volume/amount uint32为0时，pytdx误解为精确`2^-127`，批准对这一已证明哨兵纠为0；全Parquet发现amount哨兵4580454行，另24667行是volume=0而普通正amount。后一类可能涉及源端量化/零股精度，不能擅自改字段或删除整根OHLC；需保留可信价格、原始字段和可查询的质量异常记录。
+- 原生9/22三只股票样本证实SH/SZ/BJ都有返回；强拒绝zero-volume/nonzero-amount会丢BJ一根bar，样本719/720暂不完整，不得promotion。待质量标记方案完成后重验。
 
 完成记录和最终分母以执行回执更新，不能仅凭本计划判定完成。
