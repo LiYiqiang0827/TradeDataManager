@@ -38,13 +38,16 @@ import argparse
 from dataclasses import dataclass
 import logging
 import os
+import sqlite3
 import signal
 import shlex
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 SERVICE_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = SERVICE_DIR.parent  # scripts/
@@ -91,12 +94,56 @@ from core.redis_online import OnlineRedis                   # noqa: E402
 
 WRITER_PHASES = ["pre_open", "watchlist", "auction_writer", "idle_pre_morning",
                  "morning_writer", "lunch", "idle_pre_afternoon",
-                 "afternoon_writer", "writer_stopped", "closed"]
+                 "afternoon_writer", "writer_stopped", "closed",
+                 "market_closed", "calendar_unavailable"]
 SAVEDATA_PHASES = ["pre_open", "watchlist", "auction_savedata",
                    "idle_pre_morning",
                    "morning_savedata", "savedata_paused",
                    "idle_pre_afternoon",
-                   "afternoon_savedata", "post_savedata", "closed"]
+                   "afternoon_savedata", "post_savedata", "closed",
+                   "market_closed", "calendar_unavailable"]
+
+_CALENDAR_CACHE: dict[date, tuple[float, bool | None]] = {}
+_CALENDAR_CACHE_TTL_SEC = 300.0
+_CALENDAR_ERROR_CACHE_TTL_SEC = 30.0
+_SHANGHAI = ZoneInfo("Asia/Shanghai")
+
+
+def _trade_calendar_status(day: date, *, refresh: bool = False) -> bool | None:
+    """Read today's SSE open flag from the canonical database, failing closed.
+
+    None means the database/table/row/value could not be trusted. This helper
+    intentionally has no network or weekday fallback.
+    """
+    now_mono = time.monotonic()
+    cached = _CALENDAR_CACHE.get(day)
+    if not refresh and cached:
+        checked_at, status = cached
+        ttl = _CALENDAR_CACHE_TTL_SEC if status is not None else _CALENDAR_ERROR_CACHE_TTL_SEC
+        if now_mono - checked_at < ttl:
+            return status
+
+    root = Path(os.environ.get("TRADING_DATABASE_ROOT", str(Path.home() / "TradingDatabase"))).expanduser()
+    db_path = root / "offline" / "db_cn_basic.db"
+    status: bool | None = None
+    try:
+        uri = f"file:{quote(str(db_path), safe='/')}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=1.0)
+        try:
+            conn.execute("PRAGMA query_only=ON")
+            rows = conn.execute(
+                "SELECT is_open FROM tbl_cn_tradecal WHERE exchange='SSE' AND cal_date=?",
+                (day.strftime("%Y%m%d"),),
+            ).fetchall()
+            if len(rows) == 1 and rows[0][0] in (0, 1):
+                status = bool(rows[0][0])
+        finally:
+            conn.close()
+    except Exception:
+        status = None
+
+    _CALENDAR_CACHE[day] = (time.monotonic(), status)
+    return status
 
 
 def _get_writer_phase(now: datetime) -> str:
@@ -150,7 +197,7 @@ def _get_savedata_phase(now: datetime) -> str:
     return "closed"
 
 
-def get_phase(now: datetime | None = None) -> tuple[str, str]:
+def get_phase(now: datetime | None = None, *, calendar_open: bool | None = None) -> tuple[str, str]:
     """返回 (writer_phase, savedata_phase)— v6.15 用户最新统一窗口
 
     时间线:
@@ -166,10 +213,13 @@ def get_phase(now: datetime | None = None) -> tuple[str, str]:
       - 15:01-15:16  writer_stopped / afternoon_savedata(写入停,落盘收尾)
       - 15:16-16:00  writer_stopped / post_savedata(都停)
     """
-    now = now or datetime.now()
-    weekday = now.weekday()
-    if weekday >= 5:
-        return ("weekend", "weekend")
+    now = now or datetime.now(_SHANGHAI)
+    if calendar_open is None:
+        calendar_open = _trade_calendar_status(now.date())
+    if calendar_open is None:
+        return ("calendar_unavailable", "calendar_unavailable")
+    if not calendar_open:
+        return ("market_closed", "market_closed")
 
     return (_get_writer_phase(now), _get_savedata_phase(now))
 
@@ -318,6 +368,10 @@ def reset_trigger_state_if_new_day(now: datetime) -> None:
 
 def check_once_triggers(now: datetime, log: logging.Logger) -> None:
     """主循环里每分钟检查一次,看是否到点触发"""
+    market_open = _trade_calendar_status(now.date())
+    if market_open is not True:
+        log.warning("交易日历不可用或今日休市，跳过 once triggers (%s)", now.strftime("%Y%m%d"))
+        return
     reset_trigger_state_if_new_day(now)
     hh, mm = now.hour, now.minute
     for (th, tm, name, args) in ONCE_TRIGGERS:
@@ -521,7 +575,7 @@ def run_phase_services(
         if old_name in new_names:
             continue
         if pid_scope == "writer" and old_name.startswith("service_writeredis_"):
-            if old_name == "service_writeredis_watchlist" and phase not in {"closed", "weekend"}:
+            if old_name == "service_writeredis_watchlist" and phase not in {"closed", "weekend", "market_closed", "calendar_unavailable"}:
                 continue
             if not kill_daemon(old_name, log):
                 failed_stops.append(old_name)
@@ -729,7 +783,7 @@ def _reload_watchlist_if_in_trade_window(log: logging.Logger) -> None:
       - watchlist daemon 内部先写一次 Redis,再 idle sleep,15:35 阶段切换时被 kill
       - 使用统一 spawn_service 登记 Popen 和独立进程组；phase 切换或 scheduler finally 清理
     """
-    now = datetime.now()
+    now = datetime.now(_SHANGHAI)
     hh, mm = now.hour, now.minute
     t = hh * 60 + mm
 
@@ -738,9 +792,10 @@ def _reload_watchlist_if_in_trade_window(log: logging.Logger) -> None:
         log.info(f"[{now.strftime('%H:%M:%S')}] 非交易窗口,跳过 watchlist 补写")
         return
 
-    # 周末跳过
-    if now.weekday() >= 5:
-        log.info("周末,跳过 watchlist 补写")
+    # Exchange calendar is the only authority; missing/invalid rows fail closed.
+    market_open = _trade_calendar_status(now.date())
+    if market_open is not True:
+        log.warning("交易日历不可用或今日休市，跳过 watchlist 补写 (%s)", now.strftime("%Y%m%d"))
         return
 
     log.info(f"[{now.strftime('%H:%M:%S')}] 交易窗口内启动,补一次 watchlist service")
@@ -771,25 +826,32 @@ def _run_scheduler_loop_body(*, log: logging.Logger, scan_interval_sec: float = 
     # 2026-09-11:交易时间段内每次重启都补一次 watchlist
     # (盘前 watchlist 阶段结束后,该 service 就 idle sleep 等待被杀;
     #  盘中重启时它已被 kill_all_daemons 杀掉,需要 scheduler 显式补一次)
-    _reload_watchlist_if_in_trade_window(log)
+    if _trade_calendar_status(datetime.now(_SHANGHAI).date()) is True:
+        _reload_watchlist_if_in_trade_window(log)
 
-    try:
-        r = OnlineRedis()
-        r.set_meta("scheduler_started_at", datetime.now().isoformat(timespec="milliseconds"))
-    except Exception as e:
-        log.error(f"Redis 初始化失败: {e}")
-        r = None
+    r = None
 
     while not _should_exit:
-        now = datetime.now()
+        now = datetime.now(_SHANGHAI)
         ts = now.strftime("%H:%M:%S")
+        market_open = _trade_calendar_status(now.date())
+
+        if market_open is True and r is None:
+            try:
+                r = OnlineRedis()
+                r.set_meta("scheduler_started_at", now.isoformat(timespec="milliseconds"))
+            except Exception as e:
+                log.error(f"Redis 初始化失败: {e}")
+                r = None
 
         # 1. 一次性触发检查(每分钟)
-        if not dry_run:
+        if not dry_run and market_open is True:
             check_once_triggers(now, log)
 
         # 2. 阶段判断 + 双阶段独立 spawn
-        writer_phase, savedata_phase = get_phase(now)
+        if market_open is None:
+            log.error("交易日历缺失/无效；fail closed，不启动服务或once (%s)", now.strftime("%Y%m%d"))
+        writer_phase, savedata_phase = get_phase(now, calendar_open=market_open)
 
         if writer_phase != last_writer_phase or savedata_phase != last_savedata_phase:
             log.info(f"[{ts}] 阶段变化: writer={last_writer_phase}→{writer_phase}, savedata={last_savedata_phase}→{savedata_phase}")
@@ -807,7 +869,7 @@ def _run_scheduler_loop_body(*, log: logging.Logger, scan_interval_sec: float = 
                         log.critical("savedata phase 服务切换未完成，停止 scheduler")
                         return False
                     last_savedata_phase = savedata_phase
-                if savedata_phase in {"closed", "weekend"}:
+                if savedata_phase in {"closed", "weekend", "market_closed", "calendar_unavailable"}:
                     if not kill_daemon("service_writeredis_watchlist", log):
                         log.critical("收盘时 watchlist daemon 未确认退出，停止 scheduler")
                         return False
