@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import sys
 import json
+import hashlib
 from collections import Counter
 from pathlib import Path
 from datetime import datetime
@@ -504,21 +505,252 @@ def get_oneMin(
     if trade_date is not None:
         quality = get_oneMin_quality(trade_date=trade_date, ts_codes=ts_codes,
                                      ts_code=ts_code, data_root=data_root)
-        flag_sets = [json.loads(encoded) for encoded in quality["quality_flags"]] if not quality.empty else []
+        frame.attrs["quality_summary"] = _one_min_quality_summary(
+            trade_date, quality, data_root=data_root,
+            code_scoped=bool(ts_code or ts_codes), ts_code=ts_code, ts_codes=ts_codes,
+        )
+    return frame
+
+
+def _day_level_quality_audit(manifest):
+    historical = manifest.get("historical_quality_audit") or {}
+    if historical.get("status") != "audited":
+        return None
+    return {
+        "coverage_status": "audited_numeric_domains",
+        "quality_scope": "whole-day numeric-domain audit; not source-price validation",
+        "informational_decoder_correction_rows": historical.get("informational_decoder_correction_rows"),
+        "zero_reported_volume_positive_amount_rows_after_correction": historical.get("zero_reported_volume_positive_amount_rows_after_correction"),
+        "source_price_validation_status": manifest.get("source_price_validation_status", "not_audited"),
+    }
+
+
+def _merge_one_min_quality_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    keys = ["trade_date", "ts_code", "time_idx"]
+    if frame.empty:
+        return frame
+    duplicate_mask = frame.duplicated(keys, keep=False)
+    if not duplicate_mask.any():
+        return frame.sort_values(["ts_code", "time_idx"], kind="stable").reset_index(drop=True)
+    unique_rows = frame.loc[~duplicate_mask]
+    duplicate_rows = frame.loc[duplicate_mask]
+    merged = []
+    for _, group in duplicate_rows.groupby(keys, sort=False, dropna=False):
+        first = group.iloc[0].to_dict()
+        flags = sorted({
+            flag
+            for encoded in group["quality_flags"]
+            for flag in json.loads(encoded)
+        })
+        sources = sorted(set(group["source"].dropna().astype(str))) if "source" in group else []
+        payloads = []
+        for payload in group.get("source_payload_json", pd.Series(dtype=str)).dropna().astype(str):
+            if payload not in payloads:
+                payloads.append(payload)
+        first["quality_flags"] = json.dumps(flags, separators=(",", ":"))
+        if sources:
+            first["source"] = "+".join(sources)
+        if len(payloads) > 1:
+            first["source_payload_json"] = json.dumps({"records": payloads}, sort_keys=True, separators=(",", ":"))
+            first["source_payload_sha256"] = hashlib.sha256(first["source_payload_json"].encode("utf-8")).hexdigest()
+        merged.append(first)
+    return pd.concat([unique_rows, pd.DataFrame(merged)], ignore_index=True).sort_values(
+        ["ts_code", "time_idx"], kind="stable"
+    ).reset_index(drop=True)
+
+
+def _one_min_quality_summary(trade_date, quality, *, data_root=None, code_scoped=False, ts_code=None, ts_codes=None):
+    """Summarize only audited quality coverage; an absent sidecar is unknown."""
+    import json
+
+    day = _to_yyyymmdd(trade_date)
+    if data_root is None:
+        from config.settings import ONE_MIN_PARQUET_ROOT
+        base = Path(ONE_MIN_PARQUET_ROOT)
+    else:
+        base = Path(data_root)
+    manifest_path = base / "_manifest" / f"trade_date={day}.json"
+    sidecar_path = base / "_quality" / f"trade_date={day}" / "part-000.parquet"
+    manifest = {}
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            manifest = {}
+
+    historical = manifest.get("historical_quality_audit") or {}
+    source_audit = manifest.get("quality_audit") or {}
+    source_audit_exceptions = None
+    if source_audit.get("exception_counts"):
+        relative = source_audit.get("relative_to_manifest_dir") or {}
+        acceptance_path = (
+            (manifest_path.parent / relative["acceptance_manifest"]).resolve()
+            if relative.get("acceptance_manifest") else None
+        )
+        evidence = {
+            "status": source_audit.get("status"),
+            "query_surface_status": "available",
+            "scope": source_audit.get("scope"),
+            "exception_counts": source_audit.get("exception_counts"),
+            "evidence_path": str(acceptance_path) if acceptance_path else None,
+            "evidence_sha256": (source_audit.get("sha256") or {}).get("acceptance_manifest"),
+            "evidence_integrity_status": "unavailable",
+            "details": {},
+        }
+        selected_codes = {str(code).upper() for code in (ts_codes or ([ts_code] if ts_code else []))}
+        if selected_codes and acceptance_path and acceptance_path.is_file():
+            try:
+                acceptance_bytes = acceptance_path.read_bytes()
+                actual_sha = hashlib.sha256(acceptance_bytes).hexdigest()
+                expected_sha = evidence["evidence_sha256"]
+                evidence["evidence_integrity_status"] = (
+                    "verified" if expected_sha and actual_sha == expected_sha else "mismatch"
+                )
+                acceptance = json.loads(acceptance_bytes.decode("utf-8"))
+                if evidence["evidence_integrity_status"] != "verified":
+                    evidence["details_status"] = "evidence_hash_mismatch"
+                else:
+                    ratio_exceptions = acceptance.get("daily_ratio_exceptions") or {}
+                    ohlc_exceptions = acceptance.get("daily_ohlc_field_exceptions_vs_database") or {}
+                    crosschecks = acceptance.get("category9_exception_crosschecks") or []
+                    amount_checks = acceptance.get("tdx_daily_amount_float32_precision_checks") or []
+                    aggregate = acceptance.get("aggregate_quality_exceptions") or {}
+                    evidence["details"] = {
+                        "daily_ratio_exceptions": {
+                            key: [row for row in rows if str(row.get("ts_code", "")).upper() in selected_codes]
+                            for key, rows in ratio_exceptions.items()
+                        },
+                        "daily_ohlc_field_exceptions_vs_database": {
+                            key: [row for row in rows if str(row.get("ts_code", "")).upper() in selected_codes]
+                            for key, rows in ohlc_exceptions.items()
+                        },
+                        "category9_exception_crosschecks": [
+                            row for row in crosschecks if str(row.get("ts_code", "")).upper() in selected_codes
+                        ],
+                        "tdx_daily_amount_float32_precision_checks": [
+                            row for row in amount_checks if str(row.get("ts_code", "")).upper() in selected_codes
+                        ],
+                        "aggregate_quality_exceptions": {
+                            key: [row for row in rows if str(row.get("ts_code", "")).upper() in selected_codes]
+                            if isinstance(rows, list) else rows
+                            for key, rows in aggregate.items()
+                        },
+                    }
+            except (OSError, ValueError):
+                evidence["details_status"] = "evidence_unreadable"
+        elif selected_codes:
+            evidence["details_status"] = "evidence_unavailable"
+        else:
+            evidence["details_status"] = "code_filter_required_for_row_details"
+        source_audit_exceptions = evidence
+    day_level_audit = None
+    if historical.get("status") == "audited":
+        day_level_audit = {
+            "coverage_status": "audited_numeric_domains",
+            "quality_scope": "whole-day numeric-domain audit; not source-price validation",
+            "informational_decoder_correction_rows": historical.get("informational_decoder_correction_rows"),
+            "zero_reported_volume_positive_amount_rows_after_correction": historical.get("zero_reported_volume_positive_amount_rows_after_correction"),
+            "source_price_validation_status": manifest.get("source_price_validation_status", "not_audited"),
+        }
+    is_correction = lambda flag: flag.startswith("pytdx_zero_") and flag.endswith("_corrected")
+    if not quality.empty:
+        flag_sets = [json.loads(encoded) for encoded in quality["quality_flags"]]
         counts = Counter(flag for flags in flag_sets for flag in flags)
-        corrections = {key: value for key, value in sorted(counts.items())
-                       if key.startswith("pytdx_zero_") and key.endswith("_corrected")}
-        warnings = {key: value for key, value in sorted(counts.items()) if key not in corrections}
-        is_correction = lambda flag: flag.startswith("pytdx_zero_") and flag.endswith("_corrected")
-        frame.attrs["quality_summary"] = {
-            "trade_date": _to_yyyymmdd(trade_date),
+        corrections = {key: value for key, value in sorted(counts.items()) if is_correction(key)}
+        warnings = {key: value for key, value in sorted(counts.items()) if not is_correction(key)}
+        sources = set()
+        if "source" in quality.columns:
+            sources = {
+                part
+                for value in quality["source"].dropna().astype(str)
+                for part in value.split("+")
+            }
+        if "historical_stored_values" in sources:
+            coverage_status = "sidecar_plus_derived_stored_values" if len(sources) > 1 else "derived_historical_stored_values"
+            stock_level_status = "derived_warning_rows_for_query"
+        else:
+            coverage_status = "sidecar_present"
+            stock_level_status = "sidecar_flags_for_query"
+        return {
+            "trade_date": day,
+            "coverage_status": coverage_status,
+            "quality_scope": "quality flags matching this query; derived warnings are from stored values, not source payloads",
             "informational_decoder_correction_rows": sum(any(is_correction(flag) for flag in flags) for flags in flag_sets),
             "soft_quality_warning_rows": sum(any(not is_correction(flag) for flag in flags) for flags in flag_sets),
             "informational_decoder_corrections": corrections,
             "soft_quality_warnings": warnings,
+            "quality_records_in_scope": len(quality),
+            "quality_bars_in_scope": quality[["trade_date", "ts_code", "time_idx"]].drop_duplicates().shape[0],
+            "stock_level_status": stock_level_status,
+            "day_level_audit": day_level_audit,
+            "source_audit_exceptions": source_audit_exceptions,
+            "source_price_validation_status": manifest.get("source_price_validation_status", "not_audited"),
             "query": "get_oneMin_quality(trade_date=..., ts_code=...)",
         }
-    return frame
+
+    if sidecar_path.is_file():
+        return {
+            "trade_date": day,
+            "coverage_status": "sidecar_present_no_matching_flags",
+            "quality_scope": "sidecar flags matching this query",
+            "informational_decoder_correction_rows": 0,
+            "soft_quality_warning_rows": 0,
+            "informational_decoder_corrections": {},
+            "soft_quality_warnings": {},
+            "sidecar_rows_in_scope": 0,
+            "stock_level_status": "no_matching_sidecar_flags",
+            "day_level_audit": day_level_audit,
+            "source_audit_exceptions": source_audit_exceptions,
+            "source_price_validation_status": manifest.get("source_price_validation_status", "not_audited"),
+            "query": "get_oneMin_quality(trade_date=..., ts_code=...)",
+        }
+    if historical.get("status") == "audited" and not code_scoped:
+        return {
+            "trade_date": day,
+            "coverage_status": "audited_numeric_domains",
+            "quality_scope": "whole-day numeric-domain audit; not source-price validation",
+            "informational_decoder_correction_rows": historical.get("informational_decoder_correction_rows"),
+            "soft_quality_warning_rows": historical.get("zero_reported_volume_positive_amount_rows_after_correction"),
+            "informational_decoder_corrections": {"pytdx_zero_amount_corrected": historical.get("informational_decoder_correction_rows")},
+            "soft_quality_warnings": {"zero_reported_volume_positive_amount": historical.get("zero_reported_volume_positive_amount_rows_after_correction")},
+            "sidecar_rows_in_scope": None,
+            "stock_level_status": "not_applicable_whole_day_query",
+            "day_level_audit": day_level_audit,
+            "source_audit_exceptions": source_audit_exceptions,
+            "source_price_validation_status": manifest.get("source_price_validation_status", "not_audited"),
+            "query": "get_oneMin_quality(trade_date=..., ts_code=...)",
+        }
+    if historical.get("status") == "audited":
+        return {
+            "trade_date": day,
+            "coverage_status": "audited_numeric_domains_scope_unavailable",
+            "quality_scope": "whole-day numeric-domain audit exists; per-code counts are unavailable",
+            "informational_decoder_correction_rows": None,
+            "soft_quality_warning_rows": None,
+            "informational_decoder_corrections": None,
+            "soft_quality_warnings": None,
+            "sidecar_rows_in_scope": None,
+            "stock_level_status": "unknown_no_per_code_sidecar",
+            "day_level_audit": day_level_audit,
+            "source_audit_exceptions": source_audit_exceptions,
+            "source_price_validation_status": manifest.get("source_price_validation_status", "not_audited"),
+            "query": "get_oneMin_quality(trade_date=..., ts_code=...)",
+        }
+    return {
+        "trade_date": day,
+        "coverage_status": "unknown_not_audited",
+        "quality_scope": "no sidecar or applicable whole-day numeric audit",
+        "informational_decoder_correction_rows": None,
+        "soft_quality_warning_rows": None,
+        "informational_decoder_corrections": None,
+        "soft_quality_warnings": None,
+        "sidecar_rows_in_scope": None,
+        "stock_level_status": "unknown_not_audited",
+        "day_level_audit": None,
+        "source_audit_exceptions": source_audit_exceptions,
+        "source_price_validation_status": manifest.get("source_price_validation_status", "not_audited"),
+        "query": "get_oneMin_quality(trade_date=..., ts_code=...)",
+    }
 
 
 def get_oneMin_quality(
@@ -533,8 +765,81 @@ def get_oneMin_quality(
     frame = get_one_min_quality(trade_date, ts_code=ts_code, root=data_root)
     if ts_codes:
         selected = {str(code).upper() for code in ts_codes}
-        frame = frame[frame["ts_code"].isin(selected)].reset_index(drop=True)
-    return frame
+        frame = frame[frame["ts_code"].astype(str).str.upper().isin(selected)].reset_index(drop=True)
+    if data_root is None:
+        from config.settings import ONE_MIN_PARQUET_ROOT
+        base = Path(ONE_MIN_PARQUET_ROOT)
+    else:
+        base = Path(data_root)
+    day = _to_yyyymmdd(trade_date)
+    if ts_code and not ts_codes:
+        frame = frame[frame["ts_code"].astype(str).str.upper() == str(ts_code).upper()].reset_index(drop=True)
+    partition_glob = str(base / f"year={day[:4]}" / f"month={day[4:6]}" /
+                          f"trade_date={day}" / "part-*.parquet")
+    # Older partitions lack per-bar sidecars. Expose the known zero-volume /
+    # positive-amount condition from stored values, clearly labeled as derived.
+    partition_files = list((base / f"year={day[:4]}" / f"month={day[4:6]}" /
+                            f"trade_date={day}").glob("part-*.parquet"))
+    if partition_files:
+        import duckdb
+        predicates = []
+        parameters = [partition_glob]
+        selected_codes = [str(code).upper() for code in ts_codes] if ts_codes else None
+        if selected_codes:
+            predicates.append("upper(ts_code) IN (" + ",".join("?" for _ in selected_codes) + ")")
+            parameters.extend(selected_codes)
+        elif ts_code:
+            predicates.append("upper(ts_code)=?")
+            parameters.append(str(ts_code).upper())
+        where_sql = " WHERE " + " AND ".join(predicates) if predicates else ""
+        with duckdb.connect(":memory:") as conn:
+            derived = conn.execute(
+                "SELECT trade_date, ts_code, time_idx, datetime, vol, amount "
+                "FROM read_parquet(?)" + where_sql +
+                (" AND " if where_sql else " WHERE ") +
+                "vol=0 AND amount>0 ORDER BY ts_code,time_idx",
+                parameters,
+            ).fetchdf()
+    else:
+        derived = pd.DataFrame(columns=["trade_date", "ts_code", "time_idx", "datetime", "vol", "amount"])
+    if not derived.empty:
+        existing_warning_keys = set()
+        if not frame.empty:
+            for row in frame.itertuples(index=False):
+                try:
+                    flags = json.loads(row.quality_flags)
+                except (TypeError, ValueError):
+                    flags = []
+                if "amount_nonzero_with_zero_volume" in flags:
+                    existing_warning_keys.add((str(row.trade_date), str(row.ts_code), int(row.time_idx)))
+        selected_codes = {str(item).upper() for item in ts_codes} if ts_codes else None
+        rows = []
+        for row in derived.itertuples(index=False):
+            code = str(row.ts_code).upper()
+            if ts_code and code != str(ts_code).upper():
+                continue
+            if selected_codes is not None and code not in selected_codes:
+                continue
+            row_day = str(row.trade_date)
+            if len(row_day) == 8 and row_day.isdigit():
+                row_day = f"{row_day[:4]}-{row_day[4:6]}-{row_day[6:]}"
+            key = (row_day, code, int(row.time_idx))
+            if key in existing_warning_keys:
+                continue
+            payload = json.dumps({
+                "vol": int(row.vol), "amount": float(row.amount),
+                "provenance": "derived_from_current_canonical_stored_values_not_original_source_payload",
+            }, sort_keys=True, separators=(",", ":"))
+            rows.append({
+                "trade_date": row_day, "ts_code": code, "time_idx": int(row.time_idx),
+                "datetime": row.datetime, "quality_flags": '["amount_nonzero_with_zero_volume"]',
+                "source": "historical_stored_values", "source_payload_json": payload,
+                "source_payload_sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+            })
+        if rows:
+            derived_frame = pd.DataFrame(rows)
+            frame = derived_frame if frame.empty else pd.concat([frame, derived_frame], ignore_index=True)
+    return _merge_one_min_quality_rows(frame)
 
 
 def get_minute(
@@ -667,6 +972,83 @@ def get_ticks(
         return _online_loop_tdx(ts_list, dates_list, kind="ticks")
 
     return _route(source, _db, _online)
+
+
+def get_ticks_legacy(
+    ts_code: Optional[str] = None,
+    ts_codes: Optional[list] = None,
+    trade_date: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> pd.DataFrame:
+    """Read the preserved v1 tick archive without fallback or mutation.
+
+    The v1 table's timestamps have minute precision and its ``seqId`` has not
+    been certified as an exchange sequence. Direction values are returned as
+    stored. This API is intentionally separate from :func:`get_ticks`, which
+    addresses the active v2 store.
+    """
+    import sqlite3
+    from urllib.parse import quote
+    from coreClient._paths import database_root
+
+    path = database_root() / "offline" / "legacy" / "policy_ticks_v1.db"
+    if not path.is_file():
+        raise FileNotFoundError(f"legacy v1 tick archive is unavailable: {path}")
+    if (ts_code is not None) and (ts_codes is not None):
+        raise ValueError("ts_code 和 ts_codes 互斥")
+    if trade_date is not None and (start_date is not None or end_date is not None):
+        raise ValueError("trade_date 不能与 start_date/end_date 同时使用")
+    if trade_date is None and (start_date is None or end_date is None):
+        raise ValueError("必须提供 trade_date，或者同时提供 start_date 和 end_date")
+
+    def normalize_date(value: str, label: str) -> str:
+        text = str(value).strip().replace("-", "")
+        try:
+            return datetime.strptime(text, "%Y%m%d").strftime("%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError(f"{label} 必须是有效 YYYYMMDD 或 YYYY-MM-DD 日期") from exc
+
+    if trade_date is not None:
+        normalized_trade_date = normalize_date(trade_date, "trade_date")
+        normalized_start = normalized_end = None
+    else:
+        normalized_trade_date = None
+        normalized_start = normalize_date(start_date, "start_date")
+        normalized_end = normalize_date(end_date, "end_date")
+        if normalized_start > normalized_end:
+            raise ValueError("start_date 不能晚于 end_date")
+    predicates = []
+    parameters = []
+    selected_codes = ts_codes if ts_codes is not None else ([ts_code] if ts_code else [])
+    if selected_codes:
+        predicates.append("ts_code IN (" + ",".join("?" for _ in selected_codes) + ")")
+        parameters.extend(str(code).upper() for code in selected_codes)
+    if trade_date is not None:
+        predicates.append("trade_date=?")
+        parameters.append(normalized_trade_date)
+    else:
+        predicates.append("trade_date BETWEEN ? AND ?")
+        parameters.extend((normalized_start, normalized_end))
+    where = " WHERE " + " AND ".join(predicates) if predicates else ""
+    uri = "file:" + quote(str(path), safe="/") + "?mode=ro"
+    with sqlite3.connect(uri, uri=True) as conn:
+        frame = pd.read_sql_query(
+            "SELECT ts_code, trade_date, seqId, datetime, time, price, vol, buyorsell, created_at "
+            "FROM tbl_tick" + where + " ORDER BY trade_date, ts_code, seqId",
+            conn,
+            params=parameters,
+        )
+    frame.attrs.update({
+        "source": "legacy_policy_ticks_v1",
+        "database_path": str(path),
+        "timestamp_precision": "minute",
+        "seqId_semantics": "not_validated_as_exchange_sequence",
+        "buyorsell_semantics": "raw_stored_codes",
+        "historical_integrity_status": "legacy_archive_preserved; semantic_audit_pending",
+        "readonly": True,
+    })
+    return frame
 
 
 # ============================================================================

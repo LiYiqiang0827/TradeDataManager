@@ -88,6 +88,28 @@ def test_timeout_is_reported_without_uncaught_daemon_exception(monkeypatch, tmp_
     assert scheduler.spawn_service("service_week", sync=True, abort_on_failure=False) == 124
 
 
+def test_spawn_creates_log_directory_for_clean_checkout(monkeypatch, tmp_path):
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    monkeypatch.setattr(scheduler, "PROJECT_ROOT", tmp_path)
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        output = kwargs["stdout"]
+        assert not output.closed
+        calls.append((cmd, output.name))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(scheduler.subprocess, "run", fake_run)
+
+    assert not (tmp_path / "logs").exists()
+    assert scheduler.spawn_service("service_news", sync=True) == 0
+    assert calls == [
+        ([sys.executable, "-m", "service.service_news"], str(tmp_path / "logs" / "service_news.log"))
+    ]
+    assert (tmp_path / "logs" / "service_news.log").is_file()
+
+
 def test_failed_derived_tables_do_not_block_independent_source_updates(monkeypatch):
     calls = []
 

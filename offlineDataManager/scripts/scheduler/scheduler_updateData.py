@@ -90,6 +90,9 @@ def spawn_service(service_name: str, extra_args: list = None, sync: bool = False
         cmd.extend(extra_args)
 
     log_file = PROJECT_ROOT / "logs" / f"{service_name}.log"
+    # A clean clone may not contain ignored runtime directories yet. Create the
+    # log root before opening the child output file (including async services).
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     # service 文件在 PROJECT_ROOT/scripts/service/ 下,所以 cwd 是 scripts/
     SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 
