@@ -1231,8 +1231,13 @@ def query_snapshots(
     if cur.fetchone() is None:
         return []
 
-    # 2026-09-13:数据时间戳字段按 kind 分(snapshot_timestamp / auction_timestamp / minute_timestamp 等)
-    kind_ts_field = f"{kind}_timestamp"
+    # Data time columns differ by physical table schema. Minute bars expose
+    # data_timestamp (and datetime/time_idx for bar ordering); snapshot_index
+    # shares snapshot_timestamp rather than a snapshot_index_timestamp column.
+    kind_ts_field = {
+        "minute": "data_timestamp",
+        "snapshot_index": "snapshot_timestamp",
+    }.get(kind, f"{kind}_timestamp")
 
     sql = f"SELECT * FROM {table_name} WHERE 1=1"
     params = []
@@ -1251,7 +1256,10 @@ def query_snapshots(
     if end_save_ts:
         sql += " AND created_at<=?"
         params.append(end_save_ts)
-    sql += f" ORDER BY {kind_ts_field} ASC"
+    if kind == "minute":
+        sql += " ORDER BY datetime ASC, time_idx ASC"
+    else:
+        sql += f" ORDER BY {kind_ts_field} ASC"
     if limit:
         sql += f" LIMIT {int(limit)}"
 

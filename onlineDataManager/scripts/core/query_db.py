@@ -51,6 +51,18 @@ from core.sqlite_client import (
 
 _log = logging.getLogger("query_db")
 
+# These daily zt tables were written while Redis' string "False" was coerced
+# through bool(value), making both stored flags 1. Source-matched repairs have
+# not established every row in these days; callers must not use the flags for
+# historical ST filtering. 20261015 is a partial-evidence day: 5,000 rows were
+# source-matched, while 6,591 rows had no source coverage in the observed audit.
+_ZT_LEGACY_FLAG_UNRELIABLE_DATES = frozenset({
+    "20260916", "20260917", "20260918", "20260921", "20260922",
+    "20260923", "20260924", "20260928", "20260929", "20260930",
+    "20261008", "20261009", "20261012", "20261013", "20261014",
+})
+_ZT_FLAG_PARTIAL_DATE = "20261015"
+
 
 # ============================================================
 # 工具
@@ -61,6 +73,42 @@ def _ym_from_date(trade_date: str) -> str:
     if len(trade_date) >= 6:
         return trade_date[:6]
     return current_year_month()
+
+
+def fetch_zt_quality(trade_date: str) -> dict[str, Any]:
+    """Return the date-scoped reliability warning for zt boolean flags.
+
+    Unlisted dates are unknown unless a future dated audit adds them to the
+    governance record; absence of a warning record is not evidence of clean
+    ``is_st``/``is_new`` values.
+    """
+    normalized = str(trade_date).replace("-", "")
+    if normalized in _ZT_LEGACY_FLAG_UNRELIABLE_DATES:
+        return {
+            "trade_date": normalized,
+            "status": "unreliable_legacy_string_bool",
+            "fields": ["is_st", "is_new"],
+            "warning": "Legacy Redis string booleans were stored as integer 1; do not use these fields for historical ST filtering.",
+            "source_recovery": "No historical source evidence is available to reconstruct these rows.",
+            "audit_reference": "docs/online_zt_flag_quality_20261015.md",
+        }
+    if normalized == _ZT_FLAG_PARTIAL_DATE:
+        return {
+            "trade_date": normalized,
+            "status": "partial_source_coverage",
+            "fields": ["is_st", "is_new"],
+            "warning": "Only 5,000 source-matched keys were observed; 6,591 existing rows had no matching source coverage. Do not use the full-day flags for historical ST filtering.",
+            "source_matched_rows_observed": 5000,
+            "unverified_rows_observed": 6591,
+            "audit_reference": "docs/online_zt_flag_quality_20261015.md",
+        }
+    return {
+        "trade_date": normalized,
+        "status": "not_assessed",
+        "fields": ["is_st", "is_new"],
+        "warning": "No date-specific flag audit is recorded; stored values are not certified for historical ST filtering.",
+        "audit_reference": "docs/online_zt_flag_quality_20261015.md",
+    }
 
 
 # ============================================================
@@ -199,6 +247,8 @@ def fetch_zt(
     year_month: str | None = None,
 ) -> list[dict]:
     """拉 zt 当日数据"""
+    quality = fetch_zt_quality(trade_date)
+    _log.warning("fetch_zt quality status for %s: %s", quality["trade_date"], quality["status"])
     return _fetch_kind(
         "zt", trade_date,
         ts_code=ts_code,
@@ -333,44 +383,28 @@ def to_dataframe(
     except ImportError:
         raise ImportError("to_dataframe 需要 pandas:pip install pandas")
 
-    table_name = f"{kind}_{trade_date}"
+    table_name = table_name_for(kind, trade_date)
     ym = _ym_from_date(trade_date)
     conn = connect(ym, readonly=True)
-
-    cur = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (table_name,),
-    )
-    if not cur.fetchone():
+    try:
+        rows = query_snapshots(
+            conn,
+            kind=kind,
+            trade_date=trade_date,
+            ts_code=ts_code,
+            start_data_ts=start_data_ts,
+            end_data_ts=end_data_ts,
+            start_save_ts=start_save_ts,
+            end_save_ts=end_save_ts,
+            limit=limit,
+        )
+    finally:
         conn.close()
-        return pd.DataFrame()
-
-    where = []
-    params: list[Any] = []
-    if ts_code:
-        where.append("ts_code = ?")
-        params.append(ts_code)
-    if start_data_ts:
-        where.append("data_timestamp >= ?")
-        params.append(start_data_ts)
-    if end_data_ts:
-        where.append("data_timestamp <= ?")
-        params.append(end_data_ts)
-    if start_save_ts:
-        where.append("save_timestamp >= ?")
-        params.append(start_save_ts)
-    if end_save_ts:
-        where.append("save_timestamp <= ?")
-        params.append(end_save_ts)
-
-    sql = f"SELECT * FROM {table_name}"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    if limit:
-        sql += f" LIMIT {int(limit)}"
-
-    df = pd.read_sql_query(sql, conn, params=params)
-    conn.close()
+    df = pd.DataFrame(rows)
+    if kind == "zt":
+        quality = fetch_zt_quality(trade_date)
+        df.attrs["quality"] = quality
+        df.attrs["quality_warnings"] = [quality["warning"]]
     return df
 
 
