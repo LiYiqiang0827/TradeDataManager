@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -44,6 +44,52 @@ class TradeCalendarGateTests(unittest.TestCase):
     def test_open_weekend_is_allowed_when_calendar_says_open(self):
         phase = scheduler.get_phase(datetime(2026, 10, 17, 10, 0), calendar_open=True)
         self.assertEqual(phase, ("morning_writer", "morning_savedata"))
+
+    def test_close_window_only_keeps_minute_writer_until_1506(self):
+        expected = {
+            datetime(2026, 10, 15, 15, 0): ("afternoon_writer", "afternoon_savedata"),
+            datetime(2026, 10, 15, 15, 1): ("closing_minute_writer", "afternoon_savedata"),
+            datetime(2026, 10, 15, 15, 5): ("closing_minute_writer", "afternoon_savedata"),
+            datetime(2026, 10, 15, 15, 6): ("writer_stopped", "afternoon_savedata"),
+        }
+        for when, phase in expected.items():
+            with self.subTest(when=when):
+                self.assertEqual(scheduler.get_phase(when, calendar_open=True), phase)
+
+    def test_closing_phase_stops_other_seven_and_reuses_minute_daemon(self):
+        scheduler._DAEMON_PIDS.clear()
+        names = [item["name"] for item in scheduler.WRITER_DAEMONS_MORNING_AFTERNOON]
+        for index, name in enumerate(names, start=1):
+            scheduler._register_daemon(name, SimpleNamespace(pid=82000 + index))
+        stopped = []
+
+        def stop(name, _log):
+            stopped.append(name)
+            scheduler._DAEMON_PIDS.pop(name, None)
+            return True
+
+        try:
+            with mock.patch.object(scheduler, "kill_daemon", side_effect=stop), \
+                 mock.patch.object(scheduler, "spawn_service", return_value=0) as spawn:
+                rc = scheduler.run_phase_services(
+                    "closing_minute_writer", scheduler.WRITER_PHASE_SERVICES,
+                    "writer", logging.getLogger(__name__),
+                )
+                self.assertEqual(rc, 0)
+                minute = "service_writeredis_minute"
+                self.assertIn(minute, scheduler._DAEMON_PIDS)
+                self.assertEqual(set(stopped), set(names) - {minute})
+                self.assertFalse(spawn.called)
+
+                scheduler.run_phase_services(
+                    "writer_stopped", scheduler.WRITER_PHASE_SERVICES,
+                    "writer", logging.getLogger(__name__),
+                )
+                self.assertNotIn(minute, scheduler._DAEMON_PIDS)
+                self.assertEqual(stopped[-1], minute)
+                self.assertFalse(spawn.called)
+        finally:
+            scheduler._DAEMON_PIDS.clear()
 
     def test_missing_database_table_row_or_invalid_flag_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:

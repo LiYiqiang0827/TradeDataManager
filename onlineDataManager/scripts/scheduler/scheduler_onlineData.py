@@ -19,7 +19,8 @@ onlineDataManager 顶层调度器(2026-09-11 重构后,MyATM 多 service 模式)
   - 11:46-12:59  lunch / savedata_paused(都停)
   - 12:59-13:00  idle_pre_afternoon(空窗)
   - 13:00-15:01  afternoon_writer(8 个普通写入 daemon)
-  - 15:01-15:16  writer_stopped / afternoon_savedata(写入停,落盘收尾)
+  - 15:01-15:06  closing_minute_writer(仅分钟服务，完成收盘bar)
+  - 15:06-15:16  writer_stopped / afternoon_savedata(写入停,落盘收尾)
   - 15:16-16:00  closed(全停)
 
 一次性触发(scheduler 主循环每分钟检查时间点):
@@ -68,7 +69,7 @@ from core.redis_online import OnlineRedis                   # noqa: E402
 #
 # 普通 kind(8 种统一时间窗,v6.15 用户最新指令):
 #   snapshot / snapshot_index / minute / limitperformance / zt / break / hot / anomaly
-#   写盘窗口:09:29-11:31 + 12:59-15:01
+#   写盘窗口:09:29-11:31 + 12:59-15:01；仅分钟bar补齐至15:06
 #   落盘窗口:09:30-11:46 + 13:00-15:16(每 15 分钟一次)
 #
 # 完整阶段时间线:
@@ -81,7 +82,8 @@ from core.redis_online import OnlineRedis                   # noqa: E402
 #   11:46-12:59  lunch(写停)/ savedata_paused(落盘也停)
 #   12:59-13:00  idle(写入空窗)
 #   13:00-15:01  afternoon_writer(8 个普通 kind 写盘)
-#   15:01-15:16  afternoon_savedata 继续(写入已停,落盘收尾)
+#   15:01-15:06  closing_minute_writer(仅分钟服务，复用原进程)
+#   15:06-15:16  afternoon_savedata 继续(写入已停,落盘收尾)
 #   15:16-16:00  closed(全停)
 #
 # 一次性触发点:
@@ -94,7 +96,7 @@ from core.redis_online import OnlineRedis                   # noqa: E402
 
 WRITER_PHASES = ["pre_open", "watchlist", "auction_writer", "idle_pre_morning",
                  "morning_writer", "lunch", "idle_pre_afternoon",
-                 "afternoon_writer", "writer_stopped", "closed",
+                 "afternoon_writer", "closing_minute_writer", "writer_stopped", "closed",
                  "market_closed", "calendar_unavailable"]
 SAVEDATA_PHASES = ["pre_open", "watchlist", "auction_savedata",
                    "idle_pre_morning",
@@ -167,7 +169,9 @@ def _get_writer_phase(now: datetime) -> str:
         return "idle_pre_afternoon"    # 写入空窗(12:59-13:00 等下午启动)
     if (13, 0) <= t < (15, 1):
         return "afternoon_writer"      # 8 个普通写入 daemon
-    # 15:01 后写入全停
+    if (15, 1) <= t < (15, 6):
+        return "closing_minute_writer"  # 仅分钟服务继续轮询已完成的收盘bar
+    # 15:06 后写入全停
     return "writer_stopped"
 
 
@@ -210,7 +214,8 @@ def get_phase(now: datetime | None = None, *, calendar_open: bool | None = None)
       - 11:46-12:59  lunch / savedata_paused(都停)
       - 12:59-13:00  idle_pre_afternoon / idle_pre_afternoon
       - 13:00-15:01  afternoon_writer / afternoon_savedata
-      - 15:01-15:16  writer_stopped / afternoon_savedata(写入停,落盘收尾)
+      - 15:01-15:06  closing_minute_writer(仅分钟) / afternoon_savedata
+      - 15:06-15:16  writer_stopped / afternoon_savedata(写入停,落盘收尾)
       - 15:16-16:00  writer_stopped / post_savedata(都停)
     """
     now = now or datetime.now(_SHANGHAI)
@@ -296,6 +301,11 @@ WRITER_PHASE_SERVICES: dict[str, list[dict]] = {
     "afternoon_writer": [
         # 13:00-15:01:8 个普通写入 daemon(同 morning_writer,已含 snapshot_index)
         *[{**svc, "wait": True} for svc in WRITER_DAEMONS_MORNING_AFTERNOON],
+    ],
+    "closing_minute_writer": [
+        # 收盘后保留分钟写入 5 分钟，等待 TDX 发布并读取完成的 15:00 bar。
+        # 其他 7 个 writer 在 15:01 停止；savedata 继续到 15:16。
+        {"name": "service_writeredis_minute", "args": [], "wait": True},
     ],
     "writer_stopped": [],
     "closed": [],
@@ -467,6 +477,9 @@ class _OwnedDaemon:
 _DAEMON_PIDS: dict[str, _OwnedDaemon] = {}
 _DAEMON_STOP_TIMEOUT_SEC = 5.0
 _DAEMON_KILL_TIMEOUT_SEC = 2.0
+_DAEMON_RESTART_LIMIT = 3
+_DAEMON_RESTART_WINDOW_SEC = 60.0
+_DAEMON_RESTART_ATTEMPTS: dict[str, list[float]] = {}
 
 
 def _register_daemon(name: str, proc: subprocess.Popen) -> None:
@@ -588,6 +601,9 @@ def run_phase_services(
         name = svc["name"]
         if name == "service_writeredis_watchlist" and name in _DAEMON_PIDS:
             continue  # startup补写已登记该进程，watchlist phase 不重复替换。
+        if (phase == "closing_minute_writer" and name == "service_writeredis_minute"
+                and name in _DAEMON_PIDS):
+            continue  # 收盘窗口复用下午已运行的分钟 writer，不重启或丢弃其 round 状态。
         if name in _DAEMON_PIDS and not kill_daemon(name, log):
             failed_stops.append(name)
 
@@ -604,12 +620,64 @@ def run_phase_services(
         name = svc["name"]
         if name == "service_writeredis_watchlist" and name in _DAEMON_PIDS:
             continue  # 已由启动补写或上一阶段启动，保持同一所有权实例。
+        if (phase == "closing_minute_writer" and name == "service_writeredis_minute"
+                and name in _DAEMON_PIDS):
+            continue  # 延续下午阶段的同一进程，不重复启动。
         rc = spawn_service(name, svc["args"], log=log)
         max_rc = max(max_rc, abs(rc))
         if rc != 0:
             log.warning(f"{svc['name']} 失败,但继续下一个")
 
     return max_rc
+
+
+def ensure_phase_services_alive(
+    phase: str,
+    phase_services: dict[str, list[dict]],
+    pid_scope: str,
+    log: logging.Logger,
+) -> bool:
+    """Restore dead owned daemons for the current open-market phase only.
+
+    The Popen record is the ownership proof. A dead leader is removed through
+    kill_daemon only after its original process group is confirmed absent; if
+    that check is uncertain or the PGID appears reused, fail closed without a
+    signal. Restarts are rate-limited per service to avoid a crash loop.
+    """
+    services = phase_services.get(phase, [])
+    if phase in {"closed", "weekend", "market_closed", "calendar_unavailable"}:
+        return True
+
+    now = time.monotonic()
+    for svc in services:
+        name = svc["name"]
+        owned = _DAEMON_PIDS.get(name)
+        if owned is not None:
+            try:
+                exit_code = owned.proc.poll()
+            except Exception as exc:
+                log.error("[%s] %s Popen liveness unknown: %s", pid_scope, name, exc)
+                return False
+            if exit_code is None:
+                continue
+            log.warning("[%s] expected daemon exited unexpectedly: %s pid=%s rc=%s", pid_scope, name, owned.pid, exit_code)
+            if not kill_daemon(name, log):
+                log.critical("[%s] %s exited but original process group is not confirmed gone; no replacement", pid_scope, name)
+                return False
+
+        attempts = [ts for ts in _DAEMON_RESTART_ATTEMPTS.get(name, []) if now - ts < _DAEMON_RESTART_WINDOW_SEC]
+        if len(attempts) >= _DAEMON_RESTART_LIMIT:
+            _DAEMON_RESTART_ATTEMPTS[name] = attempts
+            log.critical("[%s] %s exceeded restart limit (%s in %.0fs)", pid_scope, name, len(attempts), _DAEMON_RESTART_WINDOW_SEC)
+            return False
+        attempts.append(now)
+        _DAEMON_RESTART_ATTEMPTS[name] = attempts
+        log.warning("[%s] phase=%s restoring missing daemon %s attempt=%s/%s", pid_scope, phase, name, len(attempts), _DAEMON_RESTART_LIMIT)
+        rc = spawn_service(name, svc["args"], log=log)
+        if rc != 0 or name not in _DAEMON_PIDS:
+            log.error("[%s] %s replacement was not registered rc=%s", pid_scope, name, rc)
+            return False
+    return True
 
 
 # ============================================================
@@ -882,6 +950,17 @@ def _run_scheduler_loop_body(*, log: logging.Logger, scan_interval_sec: float = 
                 log.info(f"[dry_run] 不会实际跑 service")
         else:
             log.debug(f"[{ts}] writer={writer_phase} savedata={savedata_phase} 无变化")
+
+        # Phase transitions start/stop services once. Between transitions, only
+        # inspect and recover the exact services expected in the current open
+        # trading phase; do not rerun run_phase_services and restart live peers.
+        if not dry_run and market_open is True:
+            if not ensure_phase_services_alive(writer_phase, WRITER_PHASE_SERVICES, "writer", log):
+                log.critical("writer phase daemon liveness could not be safely restored")
+                return False
+            if not ensure_phase_services_alive(savedata_phase, SAVEDATA_PHASE_SERVICES, "savedata", log):
+                log.critical("savedata phase daemon liveness could not be safely restored")
+                return False
 
         time.sleep(scan_interval_sec)
 

@@ -82,6 +82,30 @@ def test_live_minute_drops_current_forming_and_future_bars(monkeypatch, caplog):
     assert "count=2" in caplog.text
 
 
+def test_live_close_bar_is_excluded_before_minute_boundary_then_included(monkeypatch):
+    bars = [_native_bar(14, 59), _native_bar(15, 0)]
+    for bar in bars:
+        bar.update(year=2026, month=10, day=15)
+    client = TdxClient.__new__(TdxClient)
+    client.api = FakeNativeMinuteApi(bars)
+    client.ip, client.port = "fake.local", 7709
+
+    for now, expected in [
+        ((15, 0, 59), ["2026-10-15 14:59:00"]),
+        ((15, 1, 0), ["2026-10-15 14:59:00", "2026-10-15 15:00:00"]),
+    ]:
+        hour, minute, second = now
+
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 10, 15, hour, minute, second, tzinfo=tz)
+
+        monkeypatch.setattr(tdx_module, "datetime", FrozenDateTime)
+        rows = client.get_minute_kline("000001.SZ")
+        assert [row["datetime"] for row in rows] == expected
+
+
 def test_live_minute_preserves_zero_volume_bar_and_marks_soft_quality_flag(caplog):
     client = TdxClient.__new__(TdxClient)
     client.api = FakeNativeMinuteApi([_native_bar(9, 31, close=14.33, vol=0, amount=100.31)])
