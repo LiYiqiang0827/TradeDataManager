@@ -1,6 +1,6 @@
 # TradingDataManager
 
-This repository holds offline and online collection services, schedulers, database maintenance code, shared database clients, and the theme graph module. Research strategies remain in TradingAgent. This round initializes local Git only; no remote was requested or configured. Database files and credentials remain excluded from Git.
+This repository holds offline and online collection services, schedulers, database maintenance code, shared database clients, and the theme graph module. Research strategies remain in TradingAgent. The source repository is published to the user-provided GitHub remote `git@github.com:LiYiqiang0827/TradeDataManager.git` on `main`. The remote contains code and documentation only; database files, generated research artifacts, and machine credentials remain excluded from Git.
 
 ## Roots
 
