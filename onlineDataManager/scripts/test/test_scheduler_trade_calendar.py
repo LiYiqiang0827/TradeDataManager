@@ -136,6 +136,24 @@ class TradeCalendarGateTests(unittest.TestCase):
             scheduler._reload_watchlist_if_in_trade_window(log)
         spawn.assert_not_called()
 
+    def test_auction_final_and_draining_savedata_triggers(self):
+        log = logging.getLogger(__name__)
+        scheduler._triggered_today.clear()
+        scheduler._last_trigger_date = ""
+        calls = []
+        with mock.patch.object(scheduler, "_trade_calendar_status", return_value=True), \
+             mock.patch.object(scheduler, "spawn_service",
+                               side_effect=lambda name, args, **_kwargs: calls.append((name, args)) or 0):
+            scheduler.check_once_triggers(datetime(2026, 10, 15, 9, 26), log)
+            scheduler.check_once_triggers(datetime(2026, 10, 15, 9, 29), log)
+            scheduler.check_once_triggers(datetime(2026, 10, 15, 15, 15), log)
+
+        self.assertEqual(calls, [
+            ("service_writeredis_auction", ["--stage", "final", "--once"]),
+            ("service_savedata_auction", ["--drain", "--once"]),
+            ("service_savedata_auction", ["--drain", "--once"]),
+        ])
+
     def test_loop_missing_calendar_starts_no_redis_or_services(self):
         scheduler._should_exit = False
         def stop_after_one_scan(_):

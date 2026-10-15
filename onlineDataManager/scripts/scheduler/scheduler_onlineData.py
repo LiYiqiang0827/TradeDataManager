@@ -25,8 +25,9 @@ onlineDataManager 顶层调度器(2026-09-11 重构后,MyATM 多 service 模式)
 
 一次性触发(scheduler 主循环每分钟检查时间点):
   - 09:00   service_cleanredis_online --once
-  - 09:29   service_savedata_auction --once(auction 数据 09:14-09:26)
-  - 15:15   service_savedata_auction --once(v6.15 用户最新规定:auction 兜底补落)
+  - 09:26   service_writeredis_auction --stage final --once(竞价结束后单独取最终阶段)
+  - 09:29   service_savedata_auction --drain --once(排空竞价全量 STREAM)
+  - 15:15   service_savedata_auction --drain --once(auction 兜底排空)
   - 03:00   service_cleanredis_online --once(凌晨清残留,2026-09-16 用户拍板:生产真值 03:00,非 16:00)
 
 启动:
@@ -88,8 +89,9 @@ from core.redis_online import OnlineRedis                   # noqa: E402
 #
 # 一次性触发点:
 #   09:00   service_cleanredis_online --once
-#   09:29   service_savedata_auction --once(auction 数据 09:14-09:26,09:29 落)
-#   15:15   service_savedata_auction --once(auction 兜底补落,v6.15 用户最新规定)
+#   09:26   service_writeredis_auction --stage final --once(竞价结束后取最终阶段)
+#   09:29   service_savedata_auction --drain --once(竞价 STREAM 全量落盘)
+#   15:15   service_savedata_auction --drain --once(auction 兜底排空)
 #   03:00   service_cleanredis_online --once(凌晨清残留,2026-09-16 用户拍板:生产真值 03:00,非 16:00)
 #
 # get_phase 返回两个 phase:writer_phase + savedata_phase
@@ -357,8 +359,9 @@ TRADE_LOOP_DAEMONS = ALL_TRADE_DAEMONS
 # 格式:(小时, 分钟, service_name, args 列表)
 ONCE_TRIGGERS: list[tuple[int, int, str, list[str]]] = [
     (9, 0,  "service_cleanredis_online",  []),
-    (9, 29, "service_savedata_auction",   []),                                  # auction 数据 09:14-09:26,09:29 落
-    (15, 15, "service_savedata_auction",  []),                                  # v6.15 兜底补落(用户原话"auction 落盘在 15 点 15 分补落一次")
+    (9, 26, "service_writeredis_auction", ["--stage", "final"]),               # final stage 在竞价窗口后单独请求
+    (9, 29, "service_savedata_auction",   ["--drain"]),                         # 全量排空，不限于首个 1000 条
+    (15, 15, "service_savedata_auction",  ["--drain"]),                         # 兜底排空剩余竞价 STREAM
     (3, 0,  "service_cleanredis_online",  []),                                  # 生产真值:凌晨 03:00 清残留(2026-09-16 用户拍板,默认 3 点不再回 16:00)
 ]
 

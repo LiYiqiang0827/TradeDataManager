@@ -24,10 +24,11 @@
       │                    │                   │ savedata_watchlist(daemon)      │                       │
 09:14 │ auction_writer     │ auction_savedata  │ writeredis_auction(daemon)      │                       │
       │                    │                   │                                 │                       │
-09:26 │ idle_pre_morning   │ idle_pre_morning  │ (空窗,等普通 kind 启动)        │                       │
+09:26 │ idle_pre_morning   │ idle_pre_morning  │ (空窗,等普通 kind 启动)        │ writeredis_auction   │
+      │                    │                   │                                 │ --stage final --once  │
       │                    │                   │ (空窗,等落盘启动)              │                       │
 09:29 │ morning_writer     │ morning_savedata  │ 8 个普通写入 daemon             │ savedata_auction ←   │
-      │                    │                   │ 8 个普通落盘 + watchlist        │ (auction 落盘)        │
+      │                    │                   │ 8 个普通落盘 + watchlist        │ (--drain --once)      │
 09:30 │ (同上 morning_…)   │ (同上 morning_…)  │ (同上)                          │                       │
 11:31 │ lunch              │ morning_savedata  │ (无写入)                       │                       │
       │                    │                   │ 8 个落盘继续跑                  │                       │
@@ -50,7 +51,8 @@
 > **关键观察**(v6.15 用户最新统一规定):
 > - **写入时间窗(普通 8 kind)**:**09:29-11:31 + 13:00-15:01**
 > - **落盘时间窗(普通 8 kind)**:**09:30-11:46 + 13:00-15:16**(比写入晚 15 分钟,留出落完尾盘)
-> - **auction 写**:09:14-09:26 / 落:09:29 + 15:15 双落
+> - **auction 写**:09:14-09:26 持续请求 `live`，09:26 再显式请求一次 `final`；09:29 和 15:15 用 `--drain` 落完 STREAM 剩余批次
+> - 同花顺 `auction_timestamp` 是接口响应组装时刻，不是竞价事件时刻；`auction_request_stage`只记录实际请求阶段。补取阶段不能伪装成更早采集时间。
 > - **watchlist 写**:09:10 一次性 / 落:09:30-11:46 + 13:00-15:16
 > - **orderbook**:🔴 **完全停止抓取**(service 文件保留,scheduler 不再 spawn)
 > - **10 阶段 = 8 旧阶段 + 2 新 idle 阶段**(`idle_pre_morning` 09:26-09:29/09:30 + `idle_pre_afternoon` 12:59-13:00)
@@ -371,8 +373,9 @@
 | 时间 | service | args | 用途 |
 |---|---|---|---|
 | **09:00** | `service_cleanredis_online` | `[]` | 盘前清空 Redis `online:*` 前缀的所有 key + 清 `online_stream_cursor` 表(STREAM ID 失效后从 0 重读) |
-| **09:29** | `service_savedata_auction` | `[]` | 集合竞价落盘(09:14-09:26 数据在 09:29 立刻稳定) |
-| **15:15** | `service_savedata_auction` | `[]` | **v6.15 兜底补落**(原 15:10;用户原话"auction 落盘在 15 点 15 分补落一次") |
+| **09:26** | `service_writeredis_auction` | `["--stage", "final"]` | 竞价窗口后单独请求最终阶段；该命令本身以 `--once` 调用 |
+| **09:29** | `service_savedata_auction` | `["--drain"]` | 集合竞价落盘；连续读取满批 STREAM 直到读尽，避免只落首 1000 条 |
+| **15:15** | `service_savedata_auction` | `["--drain"]` | **兜底补落**，同样排空剩余 STREAM |
 | **03:00** | `service_cleanredis_online` | `[]` | ✅ **生产真值兜底清残留**(2026-09-16 用户拍板:默认 3 点,不再回 16:00)|
 
 **清 Redis 不清 SQLite**:`clean_redis_online` 只删 `online:*` 键,**不删 9 个 kind 的历史表**(数据要保留)。
@@ -402,7 +405,7 @@
 | service | DEFAULT_INTERVAL | DEFAULT_DRAIN | 触发方式 |
 |---|---|---|---|
 | `savedata_watchlist` | 1800 秒 (30 min) | False | daemon(跟随 morning/afternoon_savedata) |
-| `savedata_auction` | 99999(用不到) | False | **ONCE_TRIGGERS 09:29 + 15:15** |
+| `savedata_auction` | 99999(用不到) | False | **ONCE_TRIGGERS 09:29 + 15:15 (`--drain`)** |
 | `savedata_snapshot` | **900 秒 (15 min)** | **True**(v6.8 治本) | daemon |
 | `savedata_snapshot_index` 🆕 | 900 秒 (15 min) | False | daemon(跟随 morning/afternoon_savedata) |
 | `savedata_minute` | 900 秒 (15 min) | False | daemon |

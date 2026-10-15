@@ -114,3 +114,25 @@ def test_writer_cli_rejects_unsupported_stage(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         service_writeredis_auction.main()
     assert exc.value.code == 2
+
+
+def test_writer_once_actually_requests_final_stage(monkeypatch):
+    calls = []
+
+    class FakeRedis:
+        def get_watchlist(self):
+            return ["000001.SZ"]
+
+        def put_auction(self, **_kwargs):
+            pass
+
+        def commit_auction_snapshot(self, _snapshot):
+            return "archive-test"
+
+    monkeypatch.setattr(sys, "argv", ["service_writeredis_auction", "--stage", "final", "--once"])
+    monkeypatch.setattr(service_writeredis_auction, "OnlineRedis", FakeRedis)
+    monkeypatch.setattr(service_writeredis_auction, "fetch_auction_snapshots",
+                        lambda codes, *, stage: calls.append((codes, stage)) or [])
+
+    assert service_writeredis_auction.main() == 0
+    assert calls == [(["000001.SZ"], "final")]
