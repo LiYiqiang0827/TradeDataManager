@@ -49,6 +49,19 @@ trading-data query get_day \
 
 `database_only` is the CLI default and is passed only to providers that expose a `source` parameter. The CLI writes Parquet, CSV, or JSON; it never prints credentials or provider exception text. Provider calls that need an online source still require that provider's local configuration and credentials.
 
+For a read-only query against a provisioned Mac mini database, use the SSH bridge. It has a fixed allowlist (`get_day`, `get_minute`, `get_oneMin`, `get_fifteenMin`), accepts JSON scalar/list parameters only, and returns Arrow IPC so timestamps, nullable columns, and dtypes survive transport. The first two providers are forced to `source="database_only"`; the two minute-partition providers are intrinsically database-only. Unsupported providers, arbitrary paths, and empty results requested with `--require-nonempty` fail explicitly. SSH errors never fall back to a local snapshot.
+
+```sh
+python -m coreClient.remote_data_provider get_day \
+  --host nick@macmini \
+  --remote-root /Users/nickzhang/TradingDataManager \
+  --remote-python /Users/nickzhang/TradingDataManager/.venv/bin/python \
+  --params-json '{"ts_code":"600000.SH","trade_date":"2026-10-14"}' \
+  --output /tmp/600000-day.parquet
+```
+
+The remote command uses a fixed module entry point and shell-quotes the configured checkout and interpreter paths. Configure SSH access outside the repository. The returned DataFrame records `remote_source`, `remote_provider`, and `remote_empty` in `df.attrs`.
+
 ## Machine-local configuration
 
 Copy `.env.example` to a private file outside the repository, set `TRADING_AGENT_TUSHARE_TOKEN`, and export its variables before using providers. For LaunchAgents, point `TRADING_AGENT_ENV_FILE` at that file. Set `TRADING_DATA_MANAGER_ROOT`, `TRADING_DATABASE_ROOT`, and `TRADING_RESEARCH_ROOT` for the paths on that computer. The code does not require `privateconfig.py`; those files are ignored because machine-local settings must not enter Git. Copy the needed `coreClient/*_config.py.example` template to its ignored `*_config.py` filename before using providers that import that configuration. The example files contain no credentials.
