@@ -170,9 +170,22 @@ CREATE TABLE IF NOT EXISTS {table_name} (
     high_price                  REAL,
     low_price                   REAL,
     prev_price                  REAL,
-    auction_timestamp           TEXT NOT NULL,         -- ★ v3 数据时间戳(ISO 字符串)
-    auction_phase               TEXT,                  -- 竞价阶段:'pre_open' / 'open_auction' / 'after_close'
-    data_status                 TEXT,                  -- 同花顺 envelope 状态
+    auction_timestamp           TEXT NOT NULL,         -- 接口响应组装时间(不是行情事件时间)
+    auction_timestamp_source    TEXT,                  -- api_response_assembly / client_response_time_fallback
+    auction_request_stage       TEXT,                  -- CLI 请求阶段: live / final
+    auction_phase               TEXT,                  -- 同花顺原始 phase
+    data_status                 TEXT,                  -- 同花顺原始状态
+    name                        TEXT,                  -- 同花顺源名称
+    auction_price               REAL,                  -- 同花顺原生字段；不映射 last_price
+    auction_pct                 REAL,                  -- 同花顺原生字段
+    auction_volume              REAL,                  -- 同花顺原生值；单位未在接口文档中说明
+    auction_amount              REAL,                  -- 同花顺原生值；单位未推断
+    auction_unmatched           REAL,                  -- 同花顺原生值
+    auction_turnover_pct        REAL,                  -- 同花顺原生换手率字段
+    auction_yesterday_ratio_pct REAL,                  -- 同花顺原生字段
+    auction_volume_ratio        REAL,                  -- 同花顺原生字段
+    pre_close_price             REAL,                  -- 同花顺原生字段
+    float_market_cap            REAL,                  -- 同花顺原生值；单位按来源保留
     created_at                  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now', 'localtime')),
     UNIQUE(ts_code, auction_timestamp)
 );
@@ -508,6 +521,13 @@ def ensure_table(conn: sqlite3.Connection, kind: str, trade_date: str) -> str:
             f"kind {kind!r} 不在 KIND_SCHEMAS 里,可选: {list(KIND_SCHEMAS.keys())}"
         )
     conn.executescript(schema.format(table_name=table_name))
+    if kind == "auction":
+        # Additive per-table compatibility migration. Existing history remains
+        # untouched and is never rewritten; new source fields start NULL there.
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table_name})")}
+        for column, sql_type in AUCTION_ADDITIVE_COLUMNS.items():
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column} {sql_type}")
     conn.commit()
     return table_name
 
@@ -637,8 +657,21 @@ def _extract_auction_row(s: dict, *, trade_date: str, now_save: str = "") -> tup
         _field(s, "low_price"),
         _field(s, "prev_price"),
         _field(s, "auction_timestamp") or "",    # v6.13:auction 同花顺接口必返回,无需 snapshot_timestamp 兜底
+        _field(s, "auction_timestamp_source"),
+        _field(s, "auction_request_stage"),
         _field(s, "auction_phase"),
         _field(s, "data_status"),
+        _field(s, "name"),
+        _field(s, "auction_price"),
+        _field(s, "auction_pct"),
+        _field(s, "auction_volume"),
+        _field(s, "auction_amount"),
+        _field(s, "auction_unmatched"),
+        _field(s, "auction_turnover_pct"),
+        _field(s, "auction_yesterday_ratio_pct"),
+        _field(s, "auction_volume_ratio"),
+        _field(s, "pre_close_price"),
+        _field(s, "float_market_cap"),
     )
 
 
@@ -915,7 +948,10 @@ _KIND_COLUMNS = {
         "trade_date", "ts_code",
         "volume", "turnover", "last_price", "price_change",
         "price_change_ratio_pct", "open_price", "high_price", "low_price",
-        "prev_price", "auction_timestamp", "auction_phase", "data_status",
+        "prev_price", "auction_timestamp", "auction_timestamp_source", "auction_request_stage",
+        "auction_phase", "data_status", "name", "auction_price", "auction_pct",
+        "auction_volume", "auction_amount", "auction_unmatched", "auction_turnover_pct",
+        "auction_yesterday_ratio_pct", "auction_volume_ratio", "pre_close_price", "float_market_cap",
     ],
     "orderbook": [  # 2026-09-12 v3:删 thscode/ticker/data_timestamp/save_timestamp,时间戳改 orderbook_timestamp
         "trade_date", "ts_code",
@@ -963,6 +999,23 @@ _KIND_COLUMNS = {
         "trade_date", "ts_code",
         "source", "priority", "reason", "watchlist_timestamp",
     ],
+}
+
+# Columns added to existing daily auction tables without rewriting historical rows.
+AUCTION_ADDITIVE_COLUMNS = {
+    "auction_timestamp_source": "TEXT",
+    "auction_request_stage": "TEXT",
+    "name": "TEXT",
+    "auction_price": "REAL",
+    "auction_pct": "REAL",
+    "auction_volume": "REAL",
+    "auction_amount": "REAL",
+    "auction_unmatched": "REAL",
+    "auction_turnover_pct": "REAL",
+    "auction_yesterday_ratio_pct": "REAL",
+    "auction_volume_ratio": "REAL",
+    "pre_close_price": "REAL",
+    "float_market_cap": "REAL",
 }
 
 

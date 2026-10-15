@@ -127,7 +127,7 @@ def run_auction_loop(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Service: auction (集合竞价)")
     parser.add_argument("--interval", type=float, default=6.0)
-    parser.add_argument("--stage", default="live", choices=["live", "predicted", "post"])
+    parser.add_argument("--stage", default="live", choices=["live", "final"])
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
 

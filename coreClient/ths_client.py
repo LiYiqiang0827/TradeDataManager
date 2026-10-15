@@ -108,13 +108,13 @@ def fetch_auction_snapshots(ts_codes: list[str], *, stage: str = "live", chunk_s
     Returns:
         list of dict(源头已精简:thscode→ts_code 重命名 + 删 ticker,统一用 ts_code 标识)
 
-    注意:
-        同花顺 API 返回的外层字段 `auction_phase / data_status / timestamp`
-        是这一批的共同状态,我们把它注入到每个 item 里,便于后续落盘。
+    官方接口契约: https://fuyao.aicubes.cn/llms-full.txt (market auction-snapshot,
+    集合竞价章节)。`stage` 只支持 `live` / `final`。外层 timestamp 是响应组装时刻，
+    不是竞价行情事件时刻；竞价字段保存在各自的 auction_* 原生列，不推断单位。
 
     2026-09-12 v3 精简:
         - 源头:thscode → ts_code 重命名 + 删 ticker
-        - 数据时间戳:auction_timestamp(同花顺 envelope 给,毫秒;fallback ths_client)
+        - auction_timestamp 保留接口时间戳，另标记时间来源；缺失时兜底时间只表示本地收到响应
     """
     if not ts_codes:
         return []
@@ -141,6 +141,11 @@ def fetch_auction_snapshots(ts_codes: list[str], *, stage: str = "live", chunk_s
             # ★ v3 数据时间戳:auction_timestamp(同花顺 envelope 给,毫秒;fallback ths_client)
             if outer_ts and "auction_timestamp" not in item:
                 item["auction_timestamp"] = outer_ts
+            item.setdefault(
+                "auction_timestamp_source",
+                "api_response_assembly" if item.get("auction_timestamp") else "client_response_time_fallback",
+            )
+            item.setdefault("auction_request_stage", stage)
         all_items.extend(items)
         # 小间隔避免被限流
         time.sleep(0.2)

@@ -178,8 +178,9 @@ class OnlineSQLiteMergeTests(unittest.TestCase):
             mini, local, output = root / "mini.db", root / "local.db", root / "merged.db"
             make_db(mini, [])
             make_db(local, [])
-            with self.assertRaisesRegex(ValueError, "control tables cannot be merged"):
-                MERGER.merge_databases(mini, local, output, {"online_stream_cursor"})
+            for table in ("online_stream_cursor", "online_stream_timestamp_quarantine"):
+                with self.assertRaisesRegex(ValueError, "control tables cannot be merged"):
+                    MERGER.merge_databases(mini, local, output, {table})
             self.assertFalse(output.exists())
 
     def test_allowlist_is_required_and_unknown_tables_fail_closed(self):

@@ -1,0 +1,7 @@
+# Online STREAM timestamp/date guard
+
+The persistence guard applies to the four SQLite STREAM snapshot families handled by `persist_stream_kind`: `auction`, `snapshot`, `orderbook`, and `snapshot_index`. It parses the event timestamp (`<kind>_timestamp`, then the existing compatibility fields `data_timestamp` or `snap_ts_unix`) in the Asia/Shanghai timezone and compares its calendar date with the requested `trade_date`.
+
+Rows with a missing/invalid timestamp or a timestamp date different from `trade_date` are withheld from the domain table. The persistence wall clock is never substituted as an event time. Rejected messages are written to `online_stream_timestamp_quarantine` with kind, target date, stock code, stream key/ID, rejection reason, source timestamp, normalized JSON of the decoded Redis record, and a SHA-256 of that JSON text. The quarantine is durable before the stream cursor advances; if quarantine persistence fails, the cursor is not advanced. Redis metadata counters under `online:meta` track each rejection reason.
+
+Same-day rows remain eligible even if the save process runs later; the event timestamp, not wall-clock save time, selects the table. The guard does not cover minute ZSET persistence, watchlist/pool events, or other non-STREAM table paths. Their timestamp semantics and safeguards require separate review. A passing unit test establishes the gate behavior only; it does not establish that a running service has pulled the code or that historical tables were repaired.

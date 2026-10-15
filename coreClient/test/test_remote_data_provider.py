@@ -314,3 +314,28 @@ def test_legacy_ticks_allowlist_matches_real_provider_signature_and_cli():
     with pytest.raises(SystemExit) as exc:
         remote._cli(["--help"])
     assert exc.value.code == 0
+
+
+def test_legacy_dataset_semantics_survive_the_remote_client_roundtrip(monkeypatch):
+    from coreClient import data_provider
+
+    def fake_legacy(ts_code=None, trade_date=None):
+        return pd.DataFrame({"ts_code": [ts_code], "trade_date": [trade_date],
+                             "seqId": [3], "buyorsell": [9]})
+
+    fake_legacy.__module__ = data_provider.__name__
+    monkeypatch.setattr(data_provider, "get_ticks_legacy", fake_legacy)
+
+    def fake_run(argv, **kwargs):
+        request = json.loads(kwargs["input"])
+        payload, _info = remote._run_remote_query(request)
+        return subprocess.CompletedProcess(argv, 0, payload, b"")
+
+    monkeypatch.setattr(remote.subprocess, "run", fake_run)
+    result = remote.RemoteProvider("macmini", "/usr/bin/python3", "/opt/TradingDataManager").query(
+        "get_ticks_legacy", {"ts_code": "600000.SH", "trade_date": "2026-10-14"},
+    )
+    assert result["seqId"].tolist() == [3]
+    assert result["buyorsell"].tolist() == [9]
+    assert result.attrs["remote_provider"] == "get_ticks_legacy"
+    assert result.attrs["remote_dataset_semantics"]["timestamp_precision"] == "minute"

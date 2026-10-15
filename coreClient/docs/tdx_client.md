@@ -433,6 +433,7 @@ elif is_broken_seal(quote):
 | 配置项 | 值 | 说明 |
 |---|---|---|
 | `TDX_IP_POOL` | `[(ip, port), ...]` 6 个 IP | pytdx 服务器 IP 池(2026-09-11 实测),failover 顺序随机 |
+| `TDX_HISTORY_BAR_IP_POOL` | `shtdx.gtjas.com`, `jstdx.gtjas.com`, `sztdx.gtjas.com`（端口均为7709） | 原生历史K线服务器池；不要用空列表覆盖默认值 |
 | `TDX_DEFAULT_PORT` | `7709` | pytdx 默认端口 |
 | `INDEX_CODES` | `[(1, "000001"), (0, "399001"), (0, "399006"), (1, "000688")]` | 4 大指数代码(用户指定) |
 | `INDEX_NAMES` | dict | 4 大指数中文名 |
@@ -448,6 +449,10 @@ elif is_broken_seal(quote):
 | `TDX_MORNING_START / END` | `"09:31" / "11:30"` | 上午开盘/收盘时间 |
 | `TDX_AFTERNOON_START / END` | `"13:01" / "15:00"` | 下午开盘/收盘时间 |
 | `TDX_MORNING_BARS / AFTERNOON_BARS` | `120 / 120` | 上午/下午 K 线根数 |
+
+`coreClient/tdx_config.py`带有公开默认值；机器私有配置不是必需项。确需覆盖时才从
+`tdx_config.py.example`创建本机配置，并保留历史K线池中的可用主机。将
+`TDX_HISTORY_BAR_IP_POOL`设为空列表会覆盖默认池，导致原生历史K线请求没有可尝试的服务器。
 
 ---
 

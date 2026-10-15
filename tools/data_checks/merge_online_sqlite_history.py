@@ -23,6 +23,7 @@ VOLATILE_PAYLOAD_COLUMNS = {"snap_ts", "created_at", "updated_at", "ingested_at"
 PROTECTED_CONTROL_TABLES = {
     "online_stream_cursor", "online_stream_cursors", "stream_cursor",
     "service_state", "scheduler_state", "checkpoint", "checkpoints",
+    "online_stream_timestamp_quarantine",
 }
 MAX_CONFLICT_SAMPLES_PER_TABLE = 10
 

@@ -4,7 +4,7 @@ This tool builds a **new isolated SQLite output** from two read-only sources. It
 
 ## Table selection is explicit
 
-Pass a reviewed per-run domain table allowlist with repeated `--include-table` options (or `include_tables` in the Python API). The tool never defaults to merging every table. Tables omitted from the allowlist remain exactly as copied from Mini; local-only omitted tables are not copied. `online_stream_cursor` and common cursor/checkpoint/state control table names are forbidden even if requested, so Mini remains authoritative for process-control state. `minute_source_quality` may be explicitly included as a domain-quality table.
+Pass a reviewed per-run domain table allowlist with repeated `--include-table` options (or `include_tables` in the Python API). The tool never defaults to merging every table. Tables omitted from the allowlist remain exactly as copied from Mini; local-only omitted tables are not copied. `online_stream_cursor`, `online_stream_timestamp_quarantine`, and common cursor/checkpoint/state control table names are forbidden even if requested, so Mini remains authoritative for process-control and reject-audit state. `minute_source_quality` may be explicitly included as a domain-quality table.
 
 Before a run, create the exact table list from a reviewed schema inventory. Include only domain daily-family tables whose merge/replacement behavior has been approved, plus `minute_source_quality` when its provenance is part of the repair. Do not include control/lease/cursor tables or assume that a table name alone establishes a complete source.
 

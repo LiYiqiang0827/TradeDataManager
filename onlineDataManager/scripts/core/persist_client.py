@@ -27,9 +27,13 @@ core/persist_client.py
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
+import math
+import re
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any
 
 from core.redis_online import OnlineRedis, PREFIX
@@ -52,6 +56,93 @@ logger = setup_logger("persist_client")
 STREAM_BATCH = 1000
 # XREAD block 时长(ms)
 STREAM_BLOCK_MS = 2000
+_MARKET_TZ = ZoneInfo("Asia/Shanghai")
+_NUMERIC_TIMESTAMP = re.compile(r"^[+-]?\d+(?:\.\d+)?$")
+
+
+def _parse_stream_event_timestamp(value: Any) -> datetime | None:
+    """Parse a source timestamp without substituting persistence wall time."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        if isinstance(value, (int, float)) or (isinstance(value, str) and _NUMERIC_TIMESTAMP.fullmatch(value.strip())):
+            stamp = float(value)
+            if not math.isfinite(stamp):
+                return None
+            if abs(stamp) > 1e12:
+                stamp /= 1000.0
+            return datetime.fromtimestamp(stamp, tz=_MARKET_TZ)
+        if not isinstance(value, str):
+            return None
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=_MARKET_TZ)
+        return parsed.astimezone(_MARKET_TZ)
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+
+
+def _record_stream_timestamp_rejection(redis_client: OnlineRedis, kind: str, reason: str,
+                                       trade_date: str, ts_code: str) -> None:
+    logger.warning("[%s] reject stream row ts_code=%s trade_date=%s reason=%s",
+                   kind, ts_code, trade_date, reason)
+    try:
+        # OnlineRedis deliberately exposes get_meta/set_meta only; update the
+        # shared counter using the underlying Redis HASH increment command.
+        redis_client.r.hincrby(f"{PREFIX}:meta", f"{kind}_persist_reject_{reason}", 1)
+    except Exception:
+        logger.exception("[%s] failed to increment timestamp rejection counter (%s)", kind, reason)
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, bytes):
+        return {"bytes_hex": value.hex()}
+    if isinstance(value, float) and not math.isfinite(value):
+        return repr(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return repr(value)
+
+
+def _persist_timestamp_quarantine(conn, events: list[dict[str, Any]]) -> None:
+    if not events:
+        return
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS online_stream_timestamp_quarantine (
+            stream_key TEXT NOT NULL,
+            stream_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            target_trade_date TEXT NOT NULL,
+            ts_code TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            source_timestamp TEXT,
+            payload_json TEXT NOT NULL,
+            payload_sha256 TEXT NOT NULL,
+            detected_at TEXT NOT NULL,
+            PRIMARY KEY (stream_key, stream_id)
+        )
+    """)
+    detected_at = datetime.now().isoformat(timespec="milliseconds")
+    rows = []
+    for event in events:
+        payload_json = json.dumps(_json_safe(event["record"]), ensure_ascii=False,
+                                  sort_keys=True, separators=(",", ":"), allow_nan=False)
+        source_timestamp = event.get("source_timestamp")
+        rows.append((event["stream_key"], event["stream_id"], event["kind"],
+                     event["target_trade_date"], event["ts_code"], event["reason"],
+                     None if source_timestamp is None else str(source_timestamp), payload_json,
+                     hashlib.sha256(payload_json.encode("utf-8")).hexdigest(), detected_at))
+    conn.executemany("""
+        INSERT OR IGNORE INTO online_stream_timestamp_quarantine (
+            stream_key, stream_id, kind, target_trade_date, ts_code, reason,
+            source_timestamp, payload_json, payload_sha256, detected_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, rows)
+    conn.commit()
 
 
 # ============================================================
@@ -135,6 +226,7 @@ def persist_stream_kind(
 
             # 2. 解析 STREAM fields → record dict(2026-09-11 v2:字段已展开,无需 json.loads)
             snapshots = []
+            timestamp_quarantine = []
             max_id = last_id
             for stream_id, fields in msgs:
                 max_id = stream_id  # 记录最大 id,落盘成功后推进游标
@@ -167,26 +259,24 @@ def persist_stream_kind(
                         record.get("data_timestamp")
                         or record.get("snap_ts_unix")
                     )
-                if snap_ts_raw is not None:
-                    try:
-                        # int 毫秒(或 float 秒) → datetime 本地时区 → ISO 字符串
-                        try:
-                            ms = int(snap_ts_raw)
-                            # > 10^12 视为毫秒,否则视为秒
-                            if ms > 1e12:
-                                ts_dt = datetime.fromtimestamp(ms / 1000.0)
-                            else:
-                                ts_dt = datetime.fromtimestamp(ms)
-                        except (ValueError, TypeError):
-                            # 字符串 ISO → 直接用
-                            ts_dt = datetime.fromisoformat(snap_ts_raw)
-                        record[kind_ts_field] = ts_dt.isoformat(timespec="milliseconds")
-                    except (ValueError, TypeError, OSError):
-                        # 兜底:用落盘瞬间
-                        record[kind_ts_field] = save_ts_iso
-                else:
-                    # <kind>_timestamp 缺失 → 用落盘瞬间兜底
-                    record[kind_ts_field] = save_ts_iso
+                ts_dt = _parse_stream_event_timestamp(snap_ts_raw)
+                if ts_dt is None:
+                    timestamp_quarantine.append({
+                        "stream_key": stream_key, "stream_id": str(stream_id), "kind": kind,
+                        "target_trade_date": trade_date, "ts_code": ts_code,
+                        "reason": "missing_or_invalid_source_timestamp",
+                        "source_timestamp": snap_ts_raw, "record": record,
+                    })
+                    continue
+                if ts_dt.strftime("%Y%m%d") != trade_date.replace("-", ""):
+                    timestamp_quarantine.append({
+                        "stream_key": stream_key, "stream_id": str(stream_id), "kind": kind,
+                        "target_trade_date": trade_date, "ts_code": ts_code,
+                        "reason": "source_date_mismatch", "source_timestamp": snap_ts_raw,
+                        "record": record,
+                    })
+                    continue
+                record[kind_ts_field] = ts_dt.isoformat(timespec="milliseconds")
 
                 # ★ v2 源头展开:record 顶层直接是字段,executor 从顶层取列
                 #    不再嵌套 payload 子 dict(sqlite_client._field() 优先读顶层)
@@ -195,6 +285,13 @@ def persist_stream_kind(
                     **record,  # ★ 顶层展平 record 所有字段,executor _field() 优先读
                 })
 
+            _persist_timestamp_quarantine(conn, timestamp_quarantine)
+            # Count only after durable quarantine succeeds. A failure above
+            # leaves the stream cursor unchanged and emits no success metric.
+            for event in timestamp_quarantine:
+                _record_stream_timestamp_rejection(
+                    redis_client, kind, event["reason"], trade_date, event["ts_code"],
+                )
             if not snapshots:
                 # 没有有效数据但有消息,还是要推进游标避免死循环
                 update_cursor(conn, stream_key=stream_key, last_id=max_id, trade_date=trade_date)

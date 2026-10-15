@@ -1,8 +1,14 @@
-"""Machine-local TDX endpoints. Copy to tdx_config.py and fill reachable public hosts."""
+"""Optional machine-local TDX overrides. Keep public defaults unless overriding them."""
 from typing import Dict, List, Tuple
 
 TDX_IP_POOL: List[Tuple[str, int]] = []
-TDX_HISTORY_BAR_IP_POOL: List[Tuple[str, int]] = []
+# Do not replace this with an empty list: it disables native historical K-line
+# requests. These public hostnames mirror the defaults in tdx_config.py.
+TDX_HISTORY_BAR_IP_POOL: List[Tuple[str, int]] = [
+    ("shtdx.gtjas.com", 7709),
+    ("jstdx.gtjas.com", 7709),
+    ("sztdx.gtjas.com", 7709),
+]
 TDX_DEFAULT_PORT = 7709
 INDEX_CODES = []
 INDEX_NAMES: Dict[str, str] = {}
