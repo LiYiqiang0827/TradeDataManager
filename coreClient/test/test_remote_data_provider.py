@@ -61,6 +61,67 @@ def test_remote_query_forces_database_only_and_returns_arrow(monkeypatch, capsys
     assert meta["source"] == "database_only" and meta["rows"] == 1 and not meta["empty"]
 
 
+def test_remote_roundtrip_preserves_nullable_datetime_index(monkeypatch):
+    from coreClient import data_provider
+
+    index = pd.DatetimeIndex(["2026-10-14 09:31:00", None], name="source_time")
+
+    def fake_get_day(ts_code=None, source="database"):
+        assert source == "database_only"
+        return pd.DataFrame({"nullable": pd.array([7, None], dtype="Int64")}, index=index)
+
+    fake_get_day.__module__ = data_provider.__name__
+    monkeypatch.setattr(data_provider, "get_day", fake_get_day)
+
+    def fake_run(argv, **kwargs):
+        request = json.loads(kwargs["input"])
+        payload, _info = remote._run_remote_query(request)
+        return subprocess.CompletedProcess(argv, 0, payload, b"")
+
+    monkeypatch.setattr(remote.subprocess, "run", fake_run)
+    frame = remote.RemoteProvider("mini.local", "/usr/bin/python3", "/opt/TradingDataManager").query(
+        "get_day", {"ts_code": "600000.SH"}
+    )
+
+    assert isinstance(frame.index, pd.DatetimeIndex)
+    assert frame.index.name == "source_time"
+    assert frame.index[0] == pd.Timestamp("2026-10-14 09:31:00")
+    assert pd.isna(frame.index[1])
+    assert frame["nullable"].dtype.name == "Int64"
+    assert frame["nullable"].isna().tolist() == [False, True]
+
+
+def test_parquet_cli_exports_preserve_datetime_index(monkeypatch, tmp_path):
+    from coreClient import cli as provider_cli
+
+    frame = pd.DataFrame(
+        {"nullable": pd.array([7, None], dtype="Int64")},
+        index=pd.DatetimeIndex(["2026-10-14 09:31:00", None], name="source_time"),
+    )
+    provider_path = tmp_path / "provider.parquet"
+    provider_cli._write_result(frame, provider_path, "parquet")
+    provider_roundtrip = pd.read_parquet(provider_path)
+    assert provider_roundtrip.index.name == "source_time"
+    assert pd.isna(provider_roundtrip.index[1])
+
+    class FakeRemoteProvider:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def query(self, provider, params, *, require_nonempty=False):
+            return frame
+
+    monkeypatch.setattr(remote, "RemoteProvider", FakeRemoteProvider)
+    remote_path = tmp_path / "remote.parquet"
+    assert remote._cli([
+        "get_day", "--host", "mini.local", "--remote-python", "/usr/bin/python3",
+        "--remote-root", "/opt/TradingDataManager", "--output", str(remote_path),
+    ]) == 0
+    remote_roundtrip = pd.read_parquet(remote_path)
+    assert remote_roundtrip.index.name == "source_time"
+    assert pd.isna(remote_roundtrip.index[1])
+
+
 def test_database_only_minute_provider_rejects_arbitrary_data_root(monkeypatch):
     with pytest.raises(ValueError, match="unsupported provider parameters"):
         remote._run_remote_query({"protocol": 1, "provider": "get_oneMin",

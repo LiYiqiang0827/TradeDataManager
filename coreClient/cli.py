@@ -42,7 +42,7 @@ def _write_result(result: Any, path: Path, format_name: str) -> int:
     if isinstance(result, pd.DataFrame):
         rows = len(result)
         if format_name == "parquet":
-            result.to_parquet(path, index=False)
+            result.to_parquet(path)
         elif format_name == "csv":
             result.to_csv(path, index=False)
         else:

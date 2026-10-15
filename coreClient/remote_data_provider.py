@@ -107,7 +107,8 @@ def _run_remote_query(request: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
         raise TypeError("remote bridge supports pandas DataFrame results only")
     rows = len(result)
     source = "database_only"
-    table = pa.Table.from_pandas(result, preserve_index=False)
+    # Preserve the pandas index; some providers use a DatetimeIndex or MultiIndex.
+    table = pa.Table.from_pandas(result, preserve_index=True)
     metadata = dict(table.schema.metadata or {})
     metadata[b"trading-data-manager"] = json.dumps(
         {"protocol": _PROTOCOL_VERSION, "provider": provider, "source": source,
@@ -224,7 +225,7 @@ def _cli(argv: list[str] | None = None) -> int:
         output = Path(args.output).expanduser()
         output.parent.mkdir(parents=True, exist_ok=True)
         if output.suffix.lower() == ".parquet":
-            result.to_parquet(output, index=False)
+            result.to_parquet(output)
         elif output.suffix.lower() == ".csv":
             result.to_csv(output, index=False)
         elif output.suffix.lower() == ".json":
