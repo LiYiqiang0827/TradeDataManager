@@ -40,7 +40,7 @@
       │                    │                   │ 8 个落盘继续跑                  │                       │
 15:15 │ writer_stopped     │ afternoon_savedata│ (无写入)                       │ savedata_auction ←   │
       │                    │                   │ 8 个落盘继续跑                  │ (auction 兜底补落)    │
-15:16 │ writer_stopped     │ post_savedata     │ (全停)                         │                       │
+15:16 │ writer_stopped     │ post_savedata     │ 8 类 managed saver 退出后同步 │ final-flush `--drain`  │
       │                    │                   │                                │ scheduler 切 closed   │
 16:00 │ closed             │ closed            │ (无)                            │                       │
 03:00 │                    │                   │                                │ cleanredis --once ←   │
@@ -53,6 +53,7 @@
 > - **落盘时间窗(普通 8 kind)**:**09:30-11:46 + 13:00-15:16**(比写入晚 15 分钟,留出落完尾盘)
 > - **auction 写**:09:14-09:26 持续请求 `live`，09:26 再显式请求一次 `final`；09:29 和 15:15 用 `--drain` 落完 STREAM 剩余批次
 > - 同花顺 `auction_timestamp` 是接口响应组装时刻，不是竞价事件时刻；`auction_request_stage`只记录实际请求阶段。补取阶段不能伪装成更早采集时间。
+> - **15:16 final-flush**:scheduler先确认8类受管 savedata daemon 退出，再对这8类依次执行同步 `--drain --once`；任一命令失败即不写入闭市完成元数据并以失败退出。保存命令返回负数失败哨兵也映射成非零退出码；此步骤不包括独立 watchlist saver。
 > - **watchlist 写**:09:10 一次性 / 落:09:30-11:46 + 13:00-15:16
 > - **orderbook**:🔴 **完全停止抓取**(service 文件保留,scheduler 不再 spawn)
 > - **10 阶段 = 8 旧阶段 + 2 新 idle 阶段**(`idle_pre_morning` 09:26-09:29/09:30 + `idle_pre_afternoon` 12:59-13:00)

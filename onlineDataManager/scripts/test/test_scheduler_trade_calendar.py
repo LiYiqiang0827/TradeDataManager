@@ -6,7 +6,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest import mock
@@ -15,6 +15,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 redis_stub = ModuleType("core.redis_online")
 redis_stub.OnlineRedis = object
+redis_stub.PREFIX = "online"
 sys.modules.setdefault("core.redis_online", redis_stub)
 from scheduler import scheduler_onlineData as scheduler  # noqa: E402
 
@@ -153,6 +154,103 @@ class TradeCalendarGateTests(unittest.TestCase):
             ("service_savedata_auction", ["--drain", "--once"]),
             ("service_savedata_auction", ["--drain", "--once"]),
         ])
+
+    def test_post_savedata_transition_flushes_after_daemons_stop_despite_poll_phase(self):
+        # A daemon first run at 13:01:12 next wakes at 15:16:12, after the
+        # scheduler's 15:16 stop boundary. Final flush must be phase-driven.
+        first_run = datetime(2026, 10, 15, 13, 1, 12)
+        next_poll = first_run + timedelta(seconds=9 * 900)
+        self.assertEqual(next_poll, datetime(2026, 10, 15, 15, 16, 12))
+
+        fixed_now = datetime(2026, 10, 15, 15, 16, 0)
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fixed_now.replace(tzinfo=tz) if tz else fixed_now
+
+        events = []
+        meta = []
+        class FakeRedis:
+            def set_meta(self, key, value):
+                meta.append((key, value))
+
+        scheduler._should_exit = False
+        def stop_after_flush(_seconds):
+            scheduler._should_exit = True
+
+        def stop_phase(phase, _services, scope, _log):
+            events.append(("phase-stop", scope, phase))
+            return 0
+
+        with mock.patch.object(scheduler, "datetime", FrozenDateTime), \
+             mock.patch.object(scheduler, "_trade_calendar_status", return_value=True), \
+             mock.patch.object(scheduler, "get_phase", return_value=("writer_stopped", "post_savedata")), \
+             mock.patch.object(scheduler, "OnlineRedis", FakeRedis), \
+             mock.patch.object(scheduler, "_reload_watchlist_if_in_trade_window"), \
+             mock.patch.object(scheduler, "kill_all_daemons", return_value=True), \
+             mock.patch.object(scheduler, "check_once_triggers"), \
+             mock.patch.object(scheduler, "run_phase_services", side_effect=stop_phase), \
+             mock.patch.object(scheduler, "run_final_savedata_flush",
+                               side_effect=lambda _log: events.append(("final-flush",)) or True), \
+             mock.patch.object(scheduler, "ensure_phase_services_alive", return_value=True), \
+             mock.patch.object(scheduler.time, "sleep", side_effect=stop_after_flush):
+            result = scheduler._run_scheduler_loop_body(log=logging.getLogger(__name__), scan_interval_sec=0)
+
+        self.assertTrue(result)
+        self.assertEqual(events, [
+            ("phase-stop", "writer", "writer_stopped"),
+            ("phase-stop", "savedata", "post_savedata"),
+            ("final-flush",),
+        ])
+        self.assertIn(("scheduler_savedata_phase", "post_savedata"), meta)
+
+    def test_final_flush_failure_prevents_closed_phase_success_metadata(self):
+        fixed_now = datetime(2026, 10, 15, 15, 16, 0)
+        class FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return fixed_now.replace(tzinfo=tz) if tz else fixed_now
+
+        meta = []
+        class FakeRedis:
+            def set_meta(self, key, value):
+                meta.append((key, value))
+
+        scheduler._should_exit = False
+        with mock.patch.object(scheduler, "datetime", FrozenDateTime), \
+             mock.patch.object(scheduler, "_trade_calendar_status", return_value=True), \
+             mock.patch.object(scheduler, "get_phase", return_value=("writer_stopped", "post_savedata")), \
+             mock.patch.object(scheduler, "OnlineRedis", FakeRedis), \
+             mock.patch.object(scheduler, "_reload_watchlist_if_in_trade_window"), \
+             mock.patch.object(scheduler, "kill_all_daemons", return_value=True), \
+             mock.patch.object(scheduler, "check_once_triggers"), \
+             mock.patch.object(scheduler, "run_phase_services", return_value=0), \
+             mock.patch.object(scheduler, "run_final_savedata_flush", return_value=False), \
+             mock.patch.object(scheduler, "ensure_phase_services_alive", return_value=True):
+            result = scheduler._run_scheduler_loop_body(log=logging.getLogger(__name__), scan_interval_sec=0)
+
+        self.assertFalse(result)
+        self.assertNotIn(("scheduler_savedata_phase", "post_savedata"), meta)
+
+    def test_final_flush_invokes_each_owned_savedata_family_once_with_drain(self):
+        calls = []
+        with mock.patch.object(scheduler, "spawn_service",
+                               side_effect=lambda name, args, **_kwargs:
+                               calls.append((name, args)) or 0):
+            self.assertTrue(scheduler.run_final_savedata_flush(logging.getLogger(__name__)))
+        self.assertEqual(calls, [
+            (item["name"], ["--drain", "--once"])
+            for item in scheduler.SAVEDATA_DAEMONS_MORNING_AFTERNOON
+        ])
+
+    def test_final_flush_reports_any_one_shot_failure(self):
+        calls = []
+        def spawn(name, args, **_kwargs):
+            calls.append((name, args))
+            return 1 if name == "service_savedata_minute" else 0
+        with mock.patch.object(scheduler, "spawn_service", side_effect=spawn):
+            self.assertFalse(scheduler.run_final_savedata_flush(logging.getLogger(__name__)))
+        self.assertEqual(len(calls), len(scheduler.SAVEDATA_DAEMONS_MORNING_AFTERNOON))
 
     def test_loop_missing_calendar_starts_no_redis_or_services(self):
         scheduler._should_exit = False

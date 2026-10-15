@@ -634,6 +634,22 @@ def run_phase_services(
     return max_rc
 
 
+def run_final_savedata_flush(log: logging.Logger) -> bool:
+    """Synchronously flush every savedata family after owned daemons have stopped."""
+    log.warning("[savedata final-flush] starting once-only --drain flush for all savedata families")
+    failed = []
+    for svc in SAVEDATA_DAEMONS_MORNING_AFTERNOON:
+        name = svc["name"]
+        rc = spawn_service(name, ["--drain", "--once"], log=log)
+        if rc != 0:
+            failed.append((name, rc))
+    if failed:
+        log.critical("[savedata final-flush] not confirmed; failing scheduler close: %s", failed)
+        return False
+    log.info("[savedata final-flush] all %d families completed", len(SAVEDATA_DAEMONS_MORNING_AFTERNOON))
+    return True
+
+
 def ensure_phase_services_alive(
     phase: str,
     phase_services: dict[str, list[dict]],
@@ -939,6 +955,14 @@ def _run_scheduler_loop_body(*, log: logging.Logger, scan_interval_sec: float = 
                     if run_phase_services(savedata_phase, SAVEDATA_PHASE_SERVICES, "savedata", log) != 0:
                         log.critical("savedata phase 服务切换未完成，停止 scheduler")
                         return False
+                    if savedata_phase == "post_savedata" and last_savedata_phase != "post_savedata":
+                        # The daemon's 900s interval can straddle the 15:16 stop
+                        # (e.g. a 13:01:12 first run schedules 15:16:12). After
+                        # run_phase_services confirmed all owned savers exited,
+                        # take one synchronous final snapshot of each family.
+                        if not run_final_savedata_flush(log):
+                            log.critical("savedata final-flush 未完成，停止 scheduler且不记录闭市成功")
+                            return False
                     last_savedata_phase = savedata_phase
                 if savedata_phase in {"closed", "weekend", "market_closed", "calendar_unavailable"}:
                     if not kill_daemon("service_writeredis_watchlist", log):

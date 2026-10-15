@@ -96,6 +96,9 @@ class SavedataDaemon:
         """单次落盘(--once 模式)"""
         try:
             n = self._do_persist()
+            if n < 0:
+                self.log.error(f"savedata[{self.KIND}] --once 返回失败哨兵 n={n}")
+                return 1
             self.log.info(f"savedata[{self.KIND}] --once 落盘 n={n}")
             return 0
         except Exception as e:
