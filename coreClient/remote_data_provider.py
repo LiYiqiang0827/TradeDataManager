@@ -32,6 +32,10 @@ DATABASE_ONLY_PROVIDERS = {
     "get_oneMin": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date", "columns"},
     "get_oneMin_quality": {"trade_date", "ts_code", "ts_codes"},
     "get_fifteenMin": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date", "columns"},
+    # This is deliberately separate from get_ticks (the active v2 store).
+    # Its database path is fixed inside the provider and cannot be supplied by
+    # the caller; returned legacy semantics are attached to Arrow metadata.
+    "get_ticks_legacy": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date"},
 }
 PROVIDER_PARAMS = {**SOURCE_PROVIDERS, **DATABASE_ONLY_PROVIDERS}
 _HOST_RE = re.compile(r"^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9][A-Za-z0-9.-]*$")
@@ -115,10 +119,19 @@ def _run_remote_query(request: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
     # Preserve the pandas index; some providers use a DatetimeIndex or MultiIndex.
     table = pa.Table.from_pandas(result, preserve_index=True)
     metadata = dict(table.schema.metadata or {})
+    contract = {"protocol": _PROTOCOL_VERSION, "provider": provider, "source": source,
+                "rows": rows, "empty": rows == 0,
+                "quality_summary": result.attrs.get("quality_summary")}
+    if provider == "get_ticks_legacy":
+        contract["dataset_semantics"] = {
+            "table_generation": "legacy_policy_ticks_v1",
+            "timestamp_precision": "minute",
+            "seqId_semantics": "not_validated_as_exchange_sequence",
+            "buyorsell_semantics": "raw_stored_codes",
+            "historical_integrity_status": "legacy_archive_preserved; semantic_audit_pending",
+        }
     metadata[b"trading-data-manager"] = json.dumps(
-        {"protocol": _PROTOCOL_VERSION, "provider": provider, "source": source,
-         "rows": rows, "empty": rows == 0,
-         "quality_summary": result.attrs.get("quality_summary")},
+        contract,
         separators=(",", ":"),
     ).encode("utf-8")
     table = table.replace_schema_metadata(metadata)
@@ -209,6 +222,8 @@ class RemoteProvider:
         if isinstance(meta.get("quality_summary"), dict):
             frame.attrs["quality_summary"] = meta["quality_summary"]
             frame.attrs["quality_query"] = meta["quality_summary"].get("query")
+        if isinstance(meta.get("dataset_semantics"), dict):
+            frame.attrs["remote_dataset_semantics"] = meta["dataset_semantics"]
         if require_nonempty and table.num_rows == 0:
             raise EmptyRemoteResult(f"remote {provider} query returned zero rows")
         return frame

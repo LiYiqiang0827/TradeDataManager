@@ -267,3 +267,50 @@ def test_remote_cli_lists_added_database_dataframe_providers(capsys):
     output = capsys.readouterr().out
     for provider in ("get_week", "get_month", "get_index_daily", "get_ticks"):
         assert provider in output
+
+
+def test_legacy_ticks_is_separate_allowlisted_provider_without_path_parameter(monkeypatch):
+    from coreClient import data_provider
+
+    def fake_legacy(ts_code=None, ts_codes=None, trade_date=None, start_date=None, end_date=None):
+        return pd.DataFrame({"ts_code": [ts_code], "seqId": [17], "datetime": ["09:31"],
+                             "buyorsell": [9]})
+
+    fake_legacy.__module__ = data_provider.__name__
+    monkeypatch.setattr(data_provider, "get_ticks_legacy", fake_legacy)
+    with pytest.raises(ValueError, match="unsupported provider parameters"):
+        remote._validate_query("get_ticks_legacy", {"ts_code": "000001.SZ", "path": "/tmp/other.db"})
+
+    payload, info = remote._run_remote_query({
+        "protocol": 1, "provider": "get_ticks_legacy",
+        "params": {"ts_code": "000001.SZ", "trade_date": "20260922"},
+    })
+    assert info == {"provider": "get_ticks_legacy", "source": "database_only", "rows": 1}
+    table = ipc.open_stream(pa.py_buffer(payload)).read_all()
+    frame = table.to_pandas()
+    assert frame.loc[0, "seqId"] == 17
+    assert frame.loc[0, "buyorsell"] == 9
+    metadata = json.loads(table.schema.metadata[b"trading-data-manager"])
+    assert metadata["provider"] == "get_ticks_legacy"
+    assert metadata["source"] == "database_only"
+    assert metadata["dataset_semantics"] == {
+        "table_generation": "legacy_policy_ticks_v1",
+        "timestamp_precision": "minute",
+        "seqId_semantics": "not_validated_as_exchange_sequence",
+        "buyorsell_semantics": "raw_stored_codes",
+        "historical_integrity_status": "legacy_archive_preserved; semantic_audit_pending",
+    }
+
+
+def test_legacy_ticks_allowlist_matches_real_provider_signature_and_cli():
+    import inspect
+
+    from coreClient import data_provider
+
+    function = getattr(data_provider, "get_ticks_legacy")
+    parameters = inspect.signature(function).parameters
+    assert "source" not in parameters
+    assert remote.PROVIDER_PARAMS["get_ticks_legacy"] <= set(parameters)
+    with pytest.raises(SystemExit) as exc:
+        remote._cli(["--help"])
+    assert exc.value.code == 0
