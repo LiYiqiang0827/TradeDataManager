@@ -711,6 +711,29 @@ def _extract_minute_row(s: dict, *, trade_date: str, now_save: str = "") -> tupl
     )
 
 
+def _normalize_zt_flag(value: Any, *, field: str) -> int | None:
+    """Normalize Redis scalar encodings of zt flags without truth-testing strings."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        if value in (0, 1):
+            return int(value)
+        logger.warning("zt flag %s has unsupported numeric value type=%s; storing NULL", field, type(value).__name__)
+        return None
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"1", "true", "yes", "y"}:
+            return 1
+        if normalized in {"0", "false", "no", "n", ""}:
+            return 0 if normalized else None
+        logger.warning("zt flag %s has unsupported string representation; storing NULL", field)
+        return None
+    logger.warning("zt flag %s has unsupported value type=%s; storing NULL", field, type(value).__name__)
+    return None
+
+
 def _extract_zt_row(s: dict, *, trade_date: str, now_save: str = "") -> tuple:
     """zt 提取(2026-09-12 v3 精简):只保留 zt_timestamp,删除 thscode/ticker/snap_ts_unix/data_timestamp/save_timestamp
 
@@ -723,8 +746,8 @@ def _extract_zt_row(s: dict, *, trade_date: str, now_save: str = "") -> tuple:
         trade_date,
         s["ts_code"],
         _field(s, "name"),
-        int(bool(_field(s, "is_st"))),
-        int(bool(_field(s, "is_new"))),
+        _normalize_zt_flag(_field(s, "is_st"), field="is_st"),
+        _normalize_zt_flag(_field(s, "is_new"), field="is_new"),
         _field(s, "last_price"),
         _field(s, "price_change_ratio_pct"),
         _field(s, "limit_up_time"),

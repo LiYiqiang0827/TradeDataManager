@@ -676,6 +676,7 @@ def _persist_stream_to_sqlite(
             break
 
         snapshots = []
+        timestamp_quarantine = []
         max_id = last_id
         for stream_id, fields in msgs:
             max_id = stream_id
@@ -701,22 +702,48 @@ def _persist_stream_to_sqlite(
                     except (json.JSONDecodeError, TypeError, ValueError):
                         payload = {}
 
-            try:
-                timestamp = float(kind_ts_raw) if kind_ts_raw is not None else save_ts_unix
-                if abs(timestamp) > 1e12:
-                    timestamp /= 1000.0
-                kind_ts_iso = datetime.fromtimestamp(timestamp).isoformat(timespec="milliseconds")
-            except (ValueError, TypeError, OverflowError, OSError):
-                kind_ts_iso = save_ts_iso
-
             ts_code = (
                 fields.get("ts_code") or payload.get("ts_code") or payload.get("thscode")
                 or payload.get("ticker") or f"_{kind}_{stream_id}"
             )
+            source_record = dict(fields)
+            source_record["payload"] = payload
+            ts_dt = _parse_stream_event_timestamp(kind_ts_raw)
+            if ts_dt is None:
+                timestamp_quarantine.append({
+                    "stream_key": stream_key, "stream_id": str(stream_id), "kind": kind,
+                    "target_trade_date": trade_date, "ts_code": ts_code,
+                    "reason": "missing_or_invalid_source_timestamp",
+                    "source_timestamp": kind_ts_raw, "record": source_record,
+                })
+                continue
+            if ts_dt.strftime("%Y%m%d") != trade_date.replace("-", ""):
+                timestamp_quarantine.append({
+                    "stream_key": stream_key, "stream_id": str(stream_id), "kind": kind,
+                    "target_trade_date": trade_date, "ts_code": ts_code,
+                    "reason": "source_date_mismatch", "source_timestamp": kind_ts_raw,
+                    "record": source_record,
+                })
+                continue
+            # Preserve the existing SQLite/UNIQUE key format: naive local CST
+            # ISO milliseconds. The shared parser first converts aware input
+            # and epoch values to Asia/Shanghai, then the storage format drops
+            # the zone suffix as the historical writer did.
+            kind_ts_iso = ts_dt.astimezone(_MARKET_TZ).replace(tzinfo=None).isoformat(
+                timespec="milliseconds"
+            )
             record = {"ts_code": ts_code, kind_ts_field: kind_ts_iso, "payload": payload}
-            record.update({key: value for key, value in fields.items() if key != "payload"})
+            # Keep the normalized event time and resolved code. Raw fields only
+            # fill keys that were not already sourced or canonicalized above.
+            record.update({key: value for key, value in fields.items()
+                           if key != "payload" and key not in record})
             snapshots.append(record)
 
+        _persist_timestamp_quarantine(conn, timestamp_quarantine)
+        for event in timestamp_quarantine:
+            _record_stream_timestamp_rejection(
+                redis_client, kind, event["reason"], trade_date, event["ts_code"],
+            )
         inserted = insert_snapshots_batch(
             conn, kind=kind, trade_date=trade_date, snapshots=snapshots,
         ) if snapshots else 0
