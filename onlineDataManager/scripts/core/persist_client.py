@@ -42,6 +42,7 @@ from core.sqlite_client import (
     update_cursor,
 )
 from core.logger import setup_logger
+from coreClient.minute_validation import minute_value_error
 
 logger = setup_logger("persist_client")
 
@@ -429,6 +430,7 @@ def persist_minute(
     expected_date = datetime.strptime(trade_date, "%Y%m%d").date().isoformat()
     snapshots = []
     date_mismatch_counts: dict[str, int] = {}
+    invalid_value_counts: dict[str, dict[str, int]] = {}
     for ts_code in watchlist:
         bars = redis_client.get_minute_bars(ts_code)
         if not bars:
@@ -445,6 +447,11 @@ def persist_minute(
                 continue
             if bar_date != expected_date:
                 date_mismatch_counts[ts_code] = date_mismatch_counts.get(ts_code, 0) + 1
+                continue
+            reason = minute_value_error(b)
+            if reason:
+                per_code = invalid_value_counts.setdefault(ts_code, {})
+                per_code[reason] = per_code.get(reason, 0) + 1
                 continue
             snapshots.append({
                 "ts_code": ts_code,
@@ -464,6 +471,18 @@ def persist_minute(
             expected_date,
             len(date_mismatch_counts),
             sum(date_mismatch_counts.values()),
+        )
+    if invalid_value_counts:
+        reason_totals: dict[str, int] = {}
+        for per_code in invalid_value_counts.values():
+            for reason, count in per_code.items():
+                reason_totals[reason] = reason_totals.get(reason, 0) + count
+        logger.warning(
+            "[minute] skip bars with invalid price/volume: trade_date=%s stocks=%s bars=%s reasons=%s",
+            trade_date,
+            len(invalid_value_counts),
+            sum(reason_totals.values()),
+            reason_totals,
         )
     if not snapshots:
         return 0

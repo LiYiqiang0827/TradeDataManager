@@ -177,9 +177,10 @@ quotes = client.get_orderbook_batched([(0, "000001"), (1, "600519")] * 200, batc
 
 #### `get_minute_kline(ts_code: str) -> list[dict]`
 
-**拉 1 只 1 天的 1分钟 K 线**(共 240 根)。
-
-**2026-09-13 v4 改造**:改用 pytdx 实时分时接口 `get_minute_time_data(market, code)`,**不需要传 date**(用户原话:"实时分时图不需要传 trade date")。
+返回当前交易日已完成的1分钟K线。实现使用 pytdx 原生
+`get_security_bars(KLINE_TYPE_1MIN, ...)`，不再使用日期缺失的
+`get_minute_time_data`解码结果。源对照发现旧接口的解码price/vol会出现
+非正价格、负量和与原生K线明显不一致的正值。
 
 | 参数 | 类型 | 默认 | 说明 |
 |---|---|---|---|
@@ -191,12 +192,13 @@ ts_code        str   "000006.SZ"
 trade_date     str   "2026-09-13"(今天)
 datetime       str   "2026-09-13 09:31:00"
 time_idx       int   0-239
-price          float
-vol            int
+price          float  未复权close
+vol            int    股
 data_timestamp str   "2026-09-13T01:25:15.847" (毫秒,2026-09-15 改造)
 ```
 
-**盘中**:已走的分钟数(0..N,N < 240);**收盘后**:全 4 小时约 240 根。
+**盘中**:只返回已结束分钟内可见的bars；形成中的分钟、未来时间戳、盘外时段、
+无效OHLCV和重复时间点不会作为有效行返回。缺失分钟不会补造。
 
 ---
 
@@ -204,7 +206,8 @@ data_timestamp str   "2026-09-13T01:25:15.847" (毫秒,2026-09-15 改造)
 
 **拉 1 只 1 天的历史 1分钟 K 线**(共 240 根)。
 
-**2026-09-13 新增**:对齐 `policy_minute.db` 落盘表的 6 列字段(不带 `data_timestamp`,`data_gen.py` 自己加 `created_at`)。
+对齐 `policy_minute.db` 落盘表的6列字段(不带`data_timestamp`，由调用方维护
+`created_at`)。来源为原生1分钟K线，`price=close`（未复权），`vol`单位为股。
 
 | 参数 | 类型 | 默认 | 说明 |
 |---|---|---|---|
@@ -226,8 +229,15 @@ data_timestamp str   "2026-09-13T01:25:15.847" (毫秒,2026-09-15 改造)
 价格不复权，成交量单位为股，成交额单位为元。服务端历史深度没有协议保证，
 2026-09-26在三台历史服务器实测最近约24,000根，即100个交易日。
 
-该接口不同于`get_history_minute()`：后者只有每分钟价格和成交量，不能提供完整
-OHLC；完整1分钟Parquet的TDX替换和日更必须使用`download_one_minute()`。
+在线实时与历史兼容接口都以本接口的原生bar为来源；`get_minute_kline`和
+`get_history_minute`仅映射旧的`price`/`vol`字段合同，分别使用close和股数。历史
+服务器深度有限；未返回目标日期时接口返回空列表，不通过更改日期补行。原生
+pytdx的K线解码器会把原始4字节字段0解成`2^-127`。2026-10-15对
+`000001.SZ`与`600000.SH`的原生历史响应直接核验了2026-10-14尾盘字段：
+14:58/14:59已知零成交bar的raw volume和raw amount均为uint32 0，pytdx输出
+`5.877471754111438e-39`。客户端仅把这个精确值还原为0；其他正值不做阈值截断。
+若修正后volume为0而amount仍非0，该bar会拒绝并记录，不推造字段。旧Parquet行
+保持不变，历史重建必须有可复核来源。
 
 ---
 

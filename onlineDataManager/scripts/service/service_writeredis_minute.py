@@ -7,9 +7,10 @@ service/service_writeredis_minute.py
 - 周期 = 60 秒/轮(分时图 1 分钟一根)
 - 写入 = Redis(由 service_savedata 落盘)
 
-2026-09-13 v4:
-  - 改用 coreClient/tdx_client.get_minute_kline(ts_code) 实时接口
-    (pytdx 实时分时不需要传 date,2026-09-13 用户确认)
+分钟源:
+  - 使用 coreClient/tdx_client.get_minute_kline(ts_code) 的原生1分钟K线
+    (get_security_bars KLINE_TYPE_1MIN；price=未复权close，vol=股)
+  - 不再写入旧 get_minute_time_data decoder 的分时 price/vol
   - trade_date 不再需要 — service 永远只写"今天"
   - 删除 ts_code_to_pytdx / normalize_minute(client 自动注入 time_idx/datetime/data_timestamp)
   - idx 0 = 09:31(开盘首笔),由 client 自动算(不是 09:30)

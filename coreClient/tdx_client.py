@@ -60,6 +60,10 @@ from coreClient.tdx_config import (
     TDX_TICKS_RETRY_BACKOFF,
     TDX_MORNING_BARS,
 )
+from coreClient.minute_validation import (
+    correct_pytdx_zero_volume_sentinel,
+    native_minute_bar_error,
+)
 
 logger = logging.getLogger("tdx_client")
 if not logger.handlers:
@@ -253,15 +257,12 @@ class TdxClient:
     # ============ 1分钟K ============
 
     def get_minute_kline(self, ts_code: str) -> list[dict]:
-        """
-        拉 1 只 1 天的 1分钟 K 线(共 240 根)
+        """返回当前交易日的原生1分钟K线兼容行。
 
-        2026-09-13 v4 改造:
-          - 改用 pytdx 实时分时接口 get_minute_time_data(market, code)
-            (不需要传 date,接口内部取"今天已走的分时")
-          - datetime 拼法和历史接口完全一致:_minute_index_to_datetime(idx, date)
-            date 用今天(YYYYMMDD 整数)
-          - 去掉 date 参数(2026-09-13 用户原话:"实时分时图不需要传trade date")
+        ``get_minute_time_data`` 的不同服务器返回值无法稳定匹配原生K线：
+        解码后的 price/vol 会出现非正价格、负量和明显错误的正价格。本接口
+        改用 ``get_security_bars(KLINE_TYPE_1MIN)``，保持旧字段名
+        ``price``/``vol``，其中 price=未复权close，vol=股；无效OHLCV行跳过。
 
         Args:
             ts_code: 6 位代码 + 市场后缀,如 "000006.SZ"
@@ -279,27 +280,38 @@ class TdxClient:
             盘中:已走的分钟数(0..N,N < 240)
             收盘后:全 4 小时约 240 根
         """
-        market = market_of(ts_code)
-        code = code_of(ts_code)
-        # 2026-09-13 v4:实时分时接口,不传 date
-        rows = self.api.get_minute_time_data(market, code)
+        now = datetime.now()
+        date_int = int(now.strftime("%Y%m%d"))
+        rows = self.download_one_minute(ts_code, trade_date=date_int, max_pages=2)
         if not rows:
             return []
-
-        date_int = int(datetime.now().strftime("%Y%m%d"))
-        trade_date_str = _date_int_to_str(date_int)
         ts_wall = time.time()
         ts_iso = datetime.fromtimestamp(ts_wall).isoformat(timespec="milliseconds")
         out = []
-        for i, row in enumerate(rows):
-            if not isinstance(row, dict):
-                row = dict(row)
-            row["ts_code"] = ts_code
-            row["trade_date"] = trade_date_str
-            row["datetime"] = _minute_index_to_datetime(i, date_int)
-            row["time_idx"] = i
-            row["data_timestamp"] = ts_iso
-            out.append(row)
+        forming_or_future = 0
+        last_completed_minute = now.replace(second=0, microsecond=0)
+        for bar in rows:
+            # A bar labelled HH:MM is accepted only after that minute has ended.
+            # This also rejects future labels returned by lagging/misaligned servers.
+            if datetime.fromisoformat(bar["datetime"]) >= last_completed_minute:
+                forming_or_future += 1
+                continue
+            out.append({
+                "ts_code": ts_code,
+                "trade_date": bar["trade_date"],
+                "datetime": bar["datetime"],
+                "time_idx": bar["time_idx"],
+                "price": bar["close"],
+                "vol": int(bar["vol"]),
+                "data_timestamp": ts_iso,
+            })
+        if forming_or_future:
+            logger.warning(
+                "[minute] skipped forming or future native bars ts_code=%s count=%s cutoff=%s",
+                ts_code,
+                forming_or_future,
+                last_completed_minute.isoformat(timespec="minutes"),
+            )
         return out
 
     def get_history_minute(self, ts_code: str, date: int) -> list[dict]:
@@ -325,25 +337,18 @@ class TdxClient:
                 vol                   int
             失败时返回空 list
         """
-        market = market_of(ts_code)
-        code = code_of(ts_code)
-        # pytdx 历史分时接口:YYYYMMDD int
-        rows = self.api.get_history_minute_time_data(market, code, int(date))
-        if not rows:
-            return []
-
-        date_int = int(date)
-        trade_date_str = _date_int_to_str(date_int)
-        out = []
-        for i, row in enumerate(rows):
-            if not isinstance(row, dict):
-                row = dict(row)
-            row["ts_code"] = ts_code
-            row["trade_date"] = trade_date_str
-            row["datetime"] = _minute_index_to_datetime(i, date_int)
-            row["time_idx"] = i
-            out.append(row)
-        return out
+        rows = self.download_one_minute(ts_code, trade_date=int(date), max_pages=40)
+        return [
+            {
+                "ts_code": ts_code,
+                "trade_date": bar["trade_date"],
+                "datetime": bar["datetime"],
+                "time_idx": bar["time_idx"],
+                "price": bar["close"],
+                "vol": int(bar["vol"]),
+            }
+            for bar in rows
+        ]
 
     def download_one_minute(
         self,
@@ -390,6 +395,9 @@ class TdxClient:
         market = market_of(ts_code)
         code = code_of(ts_code)
         selected: dict[str, dict] = {}
+        rejected: dict[str, int] = {}
+        duplicate_count = 0
+        conflicting_duplicate_count = 0
         reached_history_end = False
 
         for page_idx in range(max_pages):
@@ -434,7 +442,7 @@ class TdxClient:
                     time_idx = 120 + hour * 60 + minute - (13 * 60 + 1)
                 label = f"{hour:02d}:{minute:02d}"
                 dt_key = f"{row_date:08d} {label}"
-                selected[dt_key] = {
+                native_bar = {
                     "ts_code": ts_code,
                     "trade_date": _date_int_to_str(row_date),
                     "datetime": (
@@ -446,9 +454,22 @@ class TdxClient:
                     "high": float(row["high"]),
                     "low": float(row["low"]),
                     "close": float(row["close"]),
-                    "vol": float(row["vol"]),
-                    "amount": float(row["amount"]),
+                    "vol": float(correct_pytdx_zero_volume_sentinel(row["vol"])),
+                    "amount": float(correct_pytdx_zero_volume_sentinel(row["amount"])),
                 }
+                reason = native_minute_bar_error(native_bar)
+                if reason:
+                    rejected[reason] = rejected.get(reason, 0) + 1
+                    continue
+                previous = selected.get(dt_key)
+                if previous is not None:
+                    duplicate_count += 1
+                    if any(previous[field] != native_bar[field] for field in (
+                        "open", "high", "low", "close", "vol", "amount"
+                    )):
+                        conflicting_duplicate_count += 1
+                    continue
+                selected[dt_key] = native_bar
 
             if not page_dates:
                 break
@@ -471,6 +492,19 @@ class TdxClient:
             logger.warning(
                 "download_one_minute %s 达到 max_pages=%s，可能未覆盖请求起点%s",
                 ts_code, max_pages, start_int,
+            )
+        if rejected:
+            logger.warning(
+                "download_one_minute rejected invalid OHLCV bars ts_code=%s reasons=%s",
+                ts_code,
+                rejected,
+            )
+        if duplicate_count:
+            logger.warning(
+                "download_one_minute deduplicated bars ts_code=%s duplicate=%s conflicting=%s",
+                ts_code,
+                duplicate_count,
+                conflicting_duplicate_count,
             )
         return [selected[key] for key in sorted(selected)]
 

@@ -179,7 +179,7 @@
 | 关闭阶段 | `lunch`(11:31)+ `writer_stopped`(15:01) |
 | spawn 模式 | daemon |
 | **周期** | **30 秒/轮**(v6.15 原 60s) |
-| 数据源 | pytdx 分钟 K 线(`TdxClient().get_minute_kline(ts_code)`) |
+| 数据源 | pytdx 原生1分钟K线(`get_security_bars(KLINE_TYPE_1MIN)`；兼容字段为未复权close和股数) |
 | 写 Redis key | `online:minute:<ts_code>:bars`(ZSET,每只股 1 个) |
 | 备注 | **唯一走 ZSET 不走 STREAM 的 kind**(每只股独立 ZSET,2026-09-13 v4 改) |
 

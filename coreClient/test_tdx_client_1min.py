@@ -29,7 +29,7 @@ def _client(api) -> TdxClient:
     return client
 
 
-def test_download_one_minute_returns_full_ohlc_and_240_bar_indices(monkeypatch):
+def test_download_one_minute_returns_full_ohlc_and_240_bar_indices(monkeypatch, caplog):
     monkeypatch.setattr(tdx_module, "TDX_KLINE_PAGE_SIZE", 4)
     api = FakePagedApi({
         0: [
@@ -39,6 +39,7 @@ def test_download_one_minute_returns_full_ohlc_and_240_bar_indices(monkeypatch):
             _bar(20260924, 13, 1, 10.2),
         ],
         4: [
+            _bar(20260924, 9, 31, 99.0),  # overlapping page; first value wins
             _bar(20260923, 15, 0, 9.8),
             _bar(20260924, 15, 0, 10.3),
         ],
@@ -49,6 +50,9 @@ def test_download_one_minute_returns_full_ohlc_and_240_bar_indices(monkeypatch):
     assert rows[-1]["datetime"] == "2026-09-24 15:00:00"
     assert rows[-1]["amount"] == 10000.0
     assert set(rows[-1]) >= {"open", "high", "low", "close", "vol", "amount"}
+    assert rows[0]["close"] == 10.1
+    assert "deduplicated bars" in caplog.text
+    assert "conflicting=1" in caplog.text
 
 
 def test_download_one_minute_filters_date_range_and_validates_arguments(monkeypatch):
