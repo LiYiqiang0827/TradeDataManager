@@ -5,6 +5,7 @@ A 股数据下载器(CNDataDown)
 - 全部走 Tushare pro API
 - 支持全量 + 增量(断点管理)
 """
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -125,6 +126,56 @@ def _next_day(yyyymmdd: str) -> str:
         return yyyymmdd
     dt = datetime.strptime(yyyymmdd, "%Y%m%d") + timedelta(days=1)
     return dt.strftime("%Y%m%d")
+
+
+_MARGIN_DETAIL_REQUIRED_COLUMNS = (
+    "trade_date", "ts_code", "rzye", "rqye", "rzmre", "rqyl",
+    "rzche", "rqchl", "rqmcl", "rzrqye",
+)
+_MARGIN_DETAIL_CODE = re.compile(r"^[0-9]{6}\.(?:SH|SZ|BJ)$")
+
+
+def _validate_margin_detail_response(df: pd.DataFrame, start_date: str, end_date: str) -> pd.DataFrame:
+    """Fail closed on malformed margin_detail responses, while allowing nullable metrics."""
+    missing = [column for column in _MARGIN_DETAIL_REQUIRED_COLUMNS if column not in df.columns]
+    if missing:
+        raise ValueError(f"margin_detail response missing required columns: {missing}")
+
+    start = _fmt_yyyymmdd(start_date)
+    end = _fmt_yyyymmdd(end_date)
+    valid = []
+    rejected = []
+    for index, row in df.iterrows():
+        raw_date = row.get("trade_date")
+        raw_code = row.get("ts_code")
+        if pd.isna(raw_date) or pd.isna(raw_code):
+            rejected.append((index, "missing_key"))
+            continue
+        trade_date = _fmt_yyyymmdd(raw_date)
+        code = str(raw_code).strip()
+        try:
+            datetime.strptime(trade_date, "%Y%m%d")
+        except (TypeError, ValueError):
+            rejected.append((index, "invalid_trade_date"))
+            continue
+        if not start <= trade_date <= end:
+            rejected.append((index, "trade_date_outside_request"))
+            continue
+        if not _MARGIN_DETAIL_CODE.fullmatch(code):
+            rejected.append((index, "invalid_ts_code"))
+            continue
+        valid.append(index)
+
+    if rejected:
+        # Do not persist a partial page with malformed rows: the caller leaves the
+        # month cursor behind so a later retry can re-fetch and diagnose it.
+        reasons = sorted({reason for _, reason in rejected})
+        examples = [str(index) for index, _ in rejected[:5]]
+        raise ValueError(
+            f"margin_detail response rejected {len(rejected)} malformed row(s); "
+            f"reasons={reasons}, row_indexes={examples}"
+        )
+    return df.loc[valid].copy()
 
 
 class CNDataDown:
@@ -1853,6 +1904,7 @@ class CNDataDown:
                     total_calls += 1
                     if df is None or len(df) == 0:
                         break
+                    df = _validate_margin_detail_response(df, cur_sd, cur_ed)
                     df["snap_ts"] = snap_ts()
                     inserted = upsert_df(
                         self.conn_basic, df, table,
