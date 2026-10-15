@@ -1,9 +1,10 @@
 # data_provider.md — 统一数据访问层
 
-> **版本**:v1.0(2026-09-18 新建)
-> **文件路径**:`~/TradingAgent/coreClient/data_provider.py`(单文件 1194 行)
-> **依赖**:`offlineDataManager/scripts/core/offline_db_client.py`(db 端)+ `coreClient/{tushare_client,kpl_client,tdx_client}.py`(online 端)
-> **目的**:**policyStudy 等上层研究 Agent 的唯一数据入口**。提供统一的 20 个 `get_*` 函数,每个函数自动在 `database` 和 `online` 两种模式间路由 — 上层 Agent **不用关心**数据从本地 SQLite 来还是从 Tushare / 通达信 / 开盘啦 HTTP 来。
+> **当前实现核对日期：2026-10-15。** 代码位于 `~/TradingDataManager/coreClient/data_provider.py`；数据根目录由 `TRADING_DATABASE_ROOT` 选择，默认 `~/TradingDatabase`。当前 provider 数量和完整签名以 `trading-data providers` 及 Python 函数签名为准；README 当前记录 49 个 provider。
+>
+> `source` 的当前语义：`database_only` 只读数据库且不联网；`database` 先读数据库，查询为空时会尝试在线回退；`online` 直接走在线数据源。`auto` 不是有效值。`get_oneMin`、`get_fifteenMin`、`get_ticks_legacy` 等不暴露 `source` 的接口有各自固定的数据路径。历史研究应显式使用 `database_only`，并另行约束数据的历史可见时间。
+>
+> 命令行 `trading-data query` 默认 `database_only`。Mac mini 的远程只读查询走 `coreClient.remote_data_provider`，使用固定 provider/参数白名单并在远端强制 `database_only`；它不是所有 provider 的透明代理。
 
 ---
 
@@ -16,11 +17,12 @@
 > 你理解一下我的意思,做这个的目的是未来 policyStudy 在做研究的时候 AI 只要读懂 data_provider 提供的数据接口即可离线或在线拿到数据,有些数据库没有记录的数据,也可以通过在线的方式拿。
 
 **核心价值**:
-1. **接口 1:1 镜像 offline_db_client 签名** + `source` 参数(上层代码不改)
-2. **`source="database"`** → 走本地 SQLite(`offline_db_client`)
-3. **`source="online"`** → 走对应 client(Tushare / 通达信 / 开盘啦)
-4. **`source="auto"`**(预留) → db 优先,缺失 fallback online
-5. **自动对齐 schema** —— db 和 online 列名差异由 `_align_cols` 工具填 None 占位
+1. **提供统一查询接口**；多数 provider 与 offline client 对应，并按各自签名暴露数据源选择
+2. **`source="database_only"`** → 只走本地数据库；缺数返回空结果，不触发在线请求
+3. **`source="database"`** → 先走本地数据库；空结果时尝试在线回退
+4. **`source="online"`** → 直接走对应 client(Tushare / 通达信 / 开盘啦)
+5. **固定数据库接口** —— 不暴露 `source` 的接口按各自文档固定读取数据库
+6. **自动对齐 schema** —— db 和 online 列名差异由 `_align_cols` 工具填 None 占位
 
 ---
 
@@ -31,30 +33,28 @@
 ```python
 from coreClient.data_provider import get_day, get_basic
 
-# 默认 db 模式
-df = get_day(ts_code="000006.SZ", start_date="2026-09-01", end_date="2026-09-18")
+# 仅数据库查询；空结果不联网
+df = get_day(ts_code="000006.SZ", start_date="2026-09-01", end_date="2026-09-18", source="database_only")
 
-# 显式 db 模式
+# 显式数据库优先，空结果时可能在线回退
 df = get_day(ts_code="000006.SZ", start_date="2026-09-01", end_date="2026-09-18", source="database")
 
 # online 模式
 df = get_day(ts_code="000006.SZ", start_date="2026-09-01", end_date="2026-09-18", source="online")
-
-# auto 模式(预留,目前等价于 database)
-df = get_day(ts_code="000006.SZ", start_date="2026-09-01", end_date="2026-09-18", source="auto")
 ```
 
 ### 2.2 source 参数语义
 
-**2026-09-20 实现核验补充**：历史回放请使用 `source="database_only"`，只读本地、缺数返回空表，不联网。现有 `database` 实际会在空表时 fallback online；`auto` 当前实现会报错。以下旧表中的 database/auto 说明不能作为严格离线保证。所有模式均不保证字段在历史时点已发布，研究侧还需约束可见时间。
+以下语义以 `coreClient/data_provider.py::_route` 和各 provider 签名为准。`database_only` 不联网；`database` 在数据库无结果时调用在线函数，因此历史回放不能使用它来证明数据完全来自本地。`auto` 会被拒绝为未知 source。即使使用 `database_only`，结果也不自动证明字段在历史时点已发布；研究侧仍需约束可见时间。
 
 新闻本地读取新增 keyword-only 参数 `start_datetime`、`end_datetime`、`limit`（默认5000，None表示不限）、`offset`，透传底层已有能力。精确时间/分页参数用于 `database_only`；如进入 online 路径会明确拒绝，防止时间窗口被忽略。普通 `start_date/end_date` 仍表示整日，不能把含时分秒的值传入它们来期待截断。查询结果刚好5000条时不可假定完整；应分页或在有界日期窗口用 `limit=None`。
 
 | 取值 | 含义 | 适用场景 |
 |---|---|---|
-| `"database"` (默认) | 走本地 SQLite(`offline_db_client`) | 历史研究 / 离线分析 |
-| `"online"` | 走对应 client(Tushare / 通达信 / 开盘啦) | db 没数据时 / 实时数据 |
-| `"auto"` | db 优先,缺失自动 fallback online | **预留,目前等价 database** |
+| `"database_only"` | 只查本地数据库；空结果不联网 | 严格离线查询与历史回放 |
+| `"database"` (不少接口的函数默认值) | 查本地数据库；空结果时在线回退 | 允许补取缺失数据的查询 |
+| `"online"` | 直接调用对应在线 client | 实时或明确在线查询 |
+| `"auto"` | 不支持，抛出 `ValueError` | 不使用 |
 
 ### 2.3 返回值
 
@@ -66,7 +66,11 @@ df = get_day(ts_code="000006.SZ", start_date="2026-09-01", end_date="2026-09-18"
 
 ---
 
-## 3. 完整接口清单(30 个)
+## 3. 历史接口说明快照
+
+以下逐接口清单和参数示例创建于 2026-09-18，当时覆盖 30 个接口；其路径、签名、能力和逐项说明不保证与当前 49 个 provider 一致。使用前先通过 `trading-data providers` 查看当前公开签名，并以 `coreClient/data_provider.py` 为准。当前 source 合同见本页 §2.2。
+
+### 3.1 历史接口清单（2026-09-18）
 
 > **本节最后更新**:2026-09-18(新增 12 个扩展接口:suspend/top_list/block_trade 等)
 
