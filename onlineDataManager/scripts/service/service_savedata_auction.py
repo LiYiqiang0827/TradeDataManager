@@ -28,6 +28,7 @@ from service.savedata_loop import SavedataDaemon, main  # noqa: E402
 class SavedataAuction(SavedataDaemon):
     KIND = "auction"
     DEFAULT_INTERVAL = 99999.0   # 几乎用不到(因为是 --once 模式)
+    DEFAULT_DRAIN = True         # auction STREAM 一次性落盘也必须读完所有批次
 
 
 if __name__ == "__main__":

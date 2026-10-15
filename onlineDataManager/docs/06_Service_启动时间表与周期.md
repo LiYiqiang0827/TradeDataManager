@@ -405,7 +405,7 @@
 | service | DEFAULT_INTERVAL | DEFAULT_DRAIN | 触发方式 |
 |---|---|---|---|
 | `savedata_watchlist` | 1800 秒 (30 min) | False | daemon(跟随 morning/afternoon_savedata) |
-| `savedata_auction` | 99999(用不到) | False | **ONCE_TRIGGERS 09:29 + 15:15 (`--drain`)** |
+| `savedata_auction` | 99999(用不到) | **True** | **ONCE_TRIGGERS 09:29 + 15:15 (`--drain`)**；类默认也会排空 |
 | `savedata_snapshot` | **900 秒 (15 min)** | **True**(v6.8 治本) | daemon |
 | `savedata_snapshot_index` 🆕 | 900 秒 (15 min) | False | daemon(跟随 morning/afternoon_savedata) |
 | `savedata_minute` | 900 秒 (15 min) | False | daemon |

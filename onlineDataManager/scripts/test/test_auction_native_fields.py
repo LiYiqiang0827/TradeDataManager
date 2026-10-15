@@ -15,6 +15,7 @@ if str(SCRIPTS) not in sys.path:
 from coreClient import ths_client
 from core import sqlite_client
 from service import service_writeredis_auction
+from service import service_savedata_auction, savedata_loop
 
 
 def test_fetch_auction_keeps_native_fields_stage_and_timestamp_semantics(monkeypatch):
@@ -136,3 +137,21 @@ def test_writer_once_actually_requests_final_stage(monkeypatch):
 
     assert service_writeredis_auction.main() == 0
     assert calls == [(["000001.SZ"], "final")]
+
+
+def test_savedata_auction_defaults_to_draining_all_batches(monkeypatch):
+    drain_values = []
+
+    class FakeRedis:
+        pass
+
+    monkeypatch.setattr(savedata_loop, "OnlineRedis", FakeRedis)
+    monkeypatch.setattr(savedata_loop, "persist_kind",
+                        lambda _redis, *, kind, trade_date, drain:
+                        drain_values.append((kind, trade_date, drain)) or 0)
+
+    assert savedata_loop.main(service_savedata_auction.SavedataAuction, ["--once"]) == 0
+    assert len(drain_values) == 1
+    assert drain_values[0][0] == "auction"
+    assert len(drain_values[0][1]) == 8
+    assert drain_values[0][2] is True
