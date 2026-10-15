@@ -23,6 +23,10 @@ from typing import Any
 SOURCE_PROVIDERS = {
     "get_day": {"ts_code", "ts_codes", "start_date", "end_date", "trade_date", "qfq"},
     "get_minute": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date"},
+    "get_week": {"ts_code", "ts_codes", "start_date", "end_date", "qfq"},
+    "get_month": {"ts_code", "ts_codes", "start_date", "end_date", "qfq"},
+    "get_index_daily": {"ts_code", "trade_date", "start_date", "end_date"},
+    "get_ticks": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date"},
 }
 DATABASE_ONLY_PROVIDERS = {
     "get_oneMin": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date", "columns"},

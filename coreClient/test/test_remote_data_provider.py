@@ -197,3 +197,73 @@ def test_ssh_error_has_no_local_fallback(monkeypatch):
     with pytest.raises(remote.RemoteProviderError, match="SSH provider failed"):
         client.query("get_day", {"trade_date": "20260922"})
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "provider,params",
+    [
+        ("get_week", {
+            "ts_codes": ["000001.SZ", "600000.SH"],
+            "start_date": "20260101", "end_date": "20260922", "qfq": False,
+        }),
+        ("get_month", {
+            "ts_code": "000001.SZ", "start_date": "20250101",
+            "end_date": "20260922", "qfq": True,
+        }),
+        ("get_index_daily", {"ts_code": "000001.SH", "trade_date": "20260922"}),
+        ("get_ticks", {"ts_code": "000001.SZ", "trade_date": "20260922"}),
+    ],
+)
+def test_added_dataframe_providers_force_database_only(monkeypatch, provider, params):
+    from coreClient import data_provider
+
+    seen = {}
+
+    def fake_provider(ts_code=None, ts_codes=None, start_date=None, end_date=None,
+                      trade_date=None, qfq=True, source="database"):
+        seen.update({
+            "ts_code": ts_code, "ts_codes": ts_codes, "start_date": start_date,
+            "end_date": end_date, "trade_date": trade_date, "qfq": qfq,
+            "source": source,
+        })
+        return pd.DataFrame({"trade_date": ["20260922"], "value": [1]})
+
+    fake_provider.__module__ = data_provider.__name__
+    monkeypatch.setattr(data_provider, provider, fake_provider)
+    payload, info = remote._run_remote_query({
+        "protocol": 1, "provider": provider, "params": params,
+    })
+    assert seen["source"] == "database_only"
+    assert all(seen[key] == value for key, value in params.items())
+    assert info == {"provider": provider, "source": "database_only", "rows": 1}
+    table = ipc.open_stream(pa.py_buffer(payload)).read_all()
+    metadata = json.loads(table.schema.metadata[b"trading-data-manager"])
+    assert metadata["provider"] == provider and metadata["source"] == "database_only"
+    assert table.num_rows == 1
+
+
+def test_added_source_providers_reject_source_override():
+    for provider in ("get_week", "get_month", "get_index_daily", "get_ticks"):
+        with pytest.raises(ValueError, match="cannot be overridden"):
+            remote._validate_query(provider, {"source": "online"})
+
+
+def test_added_provider_allowlists_match_real_database_signatures():
+    import inspect
+
+    from coreClient import data_provider
+
+    for provider in ("get_week", "get_month", "get_index_daily", "get_ticks"):
+        function = getattr(data_provider, provider)
+        parameters = inspect.signature(function).parameters
+        assert "source" in parameters
+        assert remote.PROVIDER_PARAMS[provider] <= set(parameters)
+
+
+def test_remote_cli_lists_added_database_dataframe_providers(capsys):
+    with pytest.raises(SystemExit) as exc:
+        remote._cli(["--help"])
+    assert exc.value.code == 0
+    output = capsys.readouterr().out
+    for provider in ("get_week", "get_month", "get_index_daily", "get_ticks"):
+        assert provider in output
