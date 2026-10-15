@@ -273,8 +273,13 @@ def test_legacy_ticks_is_separate_allowlisted_provider_without_path_parameter(mo
     from coreClient import data_provider
 
     def fake_legacy(ts_code=None, ts_codes=None, trade_date=None, start_date=None, end_date=None):
-        return pd.DataFrame({"ts_code": [ts_code], "seqId": [17], "datetime": ["09:31"],
-                             "buyorsell": [9]})
+        frame = pd.DataFrame({"ts_code": [ts_code], "seqId": [17], "datetime": ["09:31"],
+                              "buyorsell": [9]})
+        frame.attrs["historical_integrity_status"] = (
+            "internal_domains_and_control_audited; "
+            "source_completeness_and_seq_semantics_unverified"
+        )
+        return frame
 
     fake_legacy.__module__ = data_provider.__name__
     monkeypatch.setattr(data_provider, "get_ticks_legacy", fake_legacy)
@@ -298,7 +303,10 @@ def test_legacy_ticks_is_separate_allowlisted_provider_without_path_parameter(mo
         "timestamp_precision": "minute",
         "seqId_semantics": "not_validated_as_exchange_sequence",
         "buyorsell_semantics": "raw_stored_codes",
-        "historical_integrity_status": "legacy_archive_preserved; semantic_audit_pending",
+        "historical_integrity_status": (
+            "internal_domains_and_control_audited; "
+            "source_completeness_and_seq_semantics_unverified"
+        ),
     }
 
 
@@ -339,3 +347,40 @@ def test_legacy_dataset_semantics_survive_the_remote_client_roundtrip(monkeypatc
     assert result["buyorsell"].tolist() == [9]
     assert result.attrs["remote_provider"] == "get_ticks_legacy"
     assert result.attrs["remote_dataset_semantics"]["timestamp_precision"] == "minute"
+
+
+@pytest.mark.parametrize(
+    "reported_status, expected_status",
+    [
+        (
+            "internal_domains_and_control_audited; "
+            "source_completeness_and_seq_semantics_unverified",
+            "internal_domains_and_control_audited; "
+            "source_completeness_and_seq_semantics_unverified",
+        ),
+        (None, "unknown_unverified"),
+    ],
+)
+def test_legacy_audit_status_allowlist_survives_arrow_roundtrip(
+    monkeypatch, reported_status, expected_status
+):
+    from coreClient import data_provider
+
+    def fake_legacy(ts_code=None, trade_date=None):
+        frame = pd.DataFrame({"ts_code": [ts_code], "trade_date": [trade_date], "seqId": [4]})
+        if reported_status is not None:
+            frame.attrs["historical_integrity_status"] = reported_status
+        frame.attrs["untrusted_extra"] = "must not enter the protocol"
+        return frame
+
+    fake_legacy.__module__ = data_provider.__name__
+    monkeypatch.setattr(data_provider, "get_ticks_legacy", fake_legacy)
+    payload, _ = remote._run_remote_query({
+        "protocol": 1, "provider": "get_ticks_legacy",
+        "params": {"ts_code": "600000.SH", "trade_date": "2026-10-14"},
+    })
+    table = ipc.open_stream(pa.py_buffer(payload)).read_all()
+    metadata = json.loads(table.schema.metadata[b"trading-data-manager"])
+    semantics = metadata["dataset_semantics"]
+    assert semantics["historical_integrity_status"] == expected_status
+    assert "untrusted_extra" not in semantics

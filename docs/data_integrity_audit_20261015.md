@@ -30,7 +30,7 @@
 
 控制表中有133个 `tdx_empty` 代码日，尚未逐一与上市、停牌和可验证数据源核对，不能直接计为缺失或正常空值。历史 `created_at` 缺值只记录为来源时间未知，不伪造采集时间。
 
-Mac mini原 `policy_ticks.db` v1历史已保护为 `offline/legacy/policy_ticks_v1.db`（30,507,851行，2026-01-05至2026-08-31，PK为code/date/seqId），并与本地v2库分开。已提供显式只读 `get_ticks_legacy` API；它要求限定交易日或完整起止范围，原样保留raw方向码，并注明datetime只有分钟精度、`seqId`尚未证明是交易所成交序号。该mini文件的字段/行数范围已做静态审核，但完整逐行语义与新v2的统一迁移仍未完成。配套legacy `policy_minute_v1.db`约1.37GB也保留在legacy路径，尚未完成同等级内容审计。本机未挂载mini legacy目录时API明确报文件缺失，不回退到小型v2库。
+Mac mini原 `policy_ticks.db` v1历史已保护为 `offline/legacy/policy_ticks_v1.db`（30,507,851行、3,176代码、160日期，2026-01-05至2026-08-31，PK为code/date/seqId），并与本地v2库分开。只读全表域/控制表审计中，code/date/time字段、price/vol基础域均无空值或非法值，13,136个控制代码日与数据双向一致；24,489行落在09:25–15:00常规时段之外（111行09:15–09:24，24,378行15:05–15:30），需按扩展时段/集合竞价来源继续解释，原样保留。方向码原值包括0/1/2/5/8，不因代码5/8过滤；`seqId`顺序下datetime倒序为0，但这只验证存储排序关系，不能证明它是交易所真实成交序号。已提供显式只读 `get_ticks_legacy` API；它要求限定交易日或完整起止范围，原样保留方向码，并在attrs标记“内部域和控制表已审、来源完整性及seq语义未验证”。配套legacy `policy_minute_v1.db`约1.37GB也保留在legacy路径，完整表审计有8,326,802股票分钟行、3,241代码、34,696代码日，控制表双向匹配；所有已存code-days time_idx在0–239、240根顺序及基础价格/数量域通过。唯一少于240根的代码日为`000006.SZ/20260908`仅2根（缺238，来源原因未知）。`tbl_minute_index`有192,000行、800个指数代码日，控制表匹配、索引顺序与基础域检查通过。完整JSON见`/private/tmp/legacy_semantic_audit.json`。本机未挂载mini legacy目录时API明确报文件缺失，不回退到小型v2库。
 
 ## 离线SQLite核心日线表
 

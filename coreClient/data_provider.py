@@ -1045,7 +1045,7 @@ def get_ticks_legacy(
         "timestamp_precision": "minute",
         "seqId_semantics": "not_validated_as_exchange_sequence",
         "buyorsell_semantics": "raw_stored_codes",
-        "historical_integrity_status": "legacy_archive_preserved; semantic_audit_pending",
+        "historical_integrity_status": "internal_domains_and_control_audited; source_completeness_and_seq_semantics_unverified",
         "readonly": True,
     })
     return frame

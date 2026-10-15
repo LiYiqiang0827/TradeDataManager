@@ -118,6 +118,9 @@ def test_get_ticks_legacy_is_explicit_read_only_and_preserves_raw_codes(tmp_path
     assert frame.iloc[0]["buyorsell"] == 8
     assert frame.attrs["timestamp_precision"] == "minute"
     assert frame.attrs["seqId_semantics"] == "not_validated_as_exchange_sequence"
+    assert frame.attrs["historical_integrity_status"] == (
+        "internal_domains_and_control_audited; source_completeness_and_seq_semantics_unverified"
+    )
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM tbl_tick").fetchone()[0] == 1
 

@@ -41,6 +41,10 @@ PROVIDER_PARAMS = {**SOURCE_PROVIDERS, **DATABASE_ONLY_PROVIDERS}
 _HOST_RE = re.compile(r"^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9][A-Za-z0-9.-]*$")
 _PROTOCOL_VERSION = 1
 _MAX_REQUEST_BYTES = 64 * 1024
+_LEGACY_TICK_AUDIT_STATUS = (
+    "internal_domains_and_control_audited; "
+    "source_completeness_and_seq_semantics_unverified"
+)
 
 
 class RemoteProviderError(RuntimeError):
@@ -123,12 +127,20 @@ def _run_remote_query(request: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
                 "rows": rows, "empty": rows == 0,
                 "quality_summary": result.attrs.get("quality_summary")}
     if provider == "get_ticks_legacy":
+        # Project only known semantic fields; do not forward arbitrary DataFrame
+        # attrs into the remote IPC contract. Unknown/missing audit states stay
+        # explicitly conservative.
+        reported_audit_status = result.attrs.get("historical_integrity_status")
         contract["dataset_semantics"] = {
             "table_generation": "legacy_policy_ticks_v1",
             "timestamp_precision": "minute",
             "seqId_semantics": "not_validated_as_exchange_sequence",
             "buyorsell_semantics": "raw_stored_codes",
-            "historical_integrity_status": "legacy_archive_preserved; semantic_audit_pending",
+            "historical_integrity_status": (
+                _LEGACY_TICK_AUDIT_STATUS
+                if reported_audit_status == _LEGACY_TICK_AUDIT_STATUS
+                else "unknown_unverified"
+            ),
         }
     metadata[b"trading-data-manager"] = json.dumps(
         contract,
