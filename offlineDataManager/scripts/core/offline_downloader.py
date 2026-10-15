@@ -2307,6 +2307,12 @@ class CNDataDown:
           4. 转 DataFrame → upsert_rows('minute', df)
           5. mark_downloaded('minute', [(ts_code, trade_date)]) 兜底 mark
         """
+        raise RuntimeError(
+            "legacy policy_minute.db/tbl_minute writes are disabled: historical "
+            "volume units are not compatible with the current native TDX bars. "
+            "Keep legacy rows read-only and use coreClient.data_provider.get_oneMin "
+            "for canonical stock OHLCV."
+        )
         # 1) 幂等检查
         if not force and has_data("minute", ts_code, trade_date):
             return 0
@@ -2360,6 +2366,11 @@ class CNDataDown:
         pytdx get_history_minute_time_data 对指数也直接支持(已实测 5 指数都 240 行)。
         落库到 minute_index kind(同 db 文件、不同表 + 不同 ctrl)。
         """
+        raise RuntimeError(
+            "legacy policy_minute.db/tbl_minute_index writes are disabled: no "
+            "verified index-specific native one-minute source contract is configured. "
+            "Keep the legacy index series read-only until a separate index source is validated."
+        )
         if not force and has_data("minute_index", ts_code, trade_date):
             return 0
 

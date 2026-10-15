@@ -42,6 +42,13 @@ def main():
         logger.error("[service_intraday_index] 指数 service 不接受 --watchlist / --ts-codes,只需日期参数")
         return 1
 
+    print(
+        "[service_intraday_index] legacy policy-minute index writes are disabled "
+        "until an index-specific native source and volume contract are verified.",
+        file=sys.stderr,
+    )
+    return 2
+
     log_file = PROJECT_ROOT / "logs" / "service_intraday_index.log"
     logger.add(str(log_file), rotation="20 MB", level="INFO", enqueue=True)
 

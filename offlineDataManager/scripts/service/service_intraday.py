@@ -43,6 +43,14 @@ def main():
     add_market_args(parser)
     args = parser.parse_args()
 
+    print(
+        "[service_intraday] legacy policy-minute writes are disabled because the "
+        "historical volume unit differs from current native TDX bars; use the "
+        "canonical oneMinute OHLCV pipeline.",
+        file=sys.stderr,
+    )
+    return 2
+
     log_file = PROJECT_ROOT / "logs" / "service_intraday.log"
     logger.add(str(log_file), rotation="20 MB", level="INFO", enqueue=True)
 
