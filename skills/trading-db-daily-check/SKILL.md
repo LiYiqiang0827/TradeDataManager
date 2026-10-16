@@ -64,6 +64,18 @@ skill 自带 3 个独立脚本,各自有详细自检能力:
 - **关键认知**:`~/TradingDataManager/` 是独立 git 仓库(github.com/LiYiqiang0827/TradeDataManager),
   不是空目录也不是 symlink,plist 指向它是**正确**的;skill 副本跟着仓库走,运维更直观
 
+### 两副本同步工作流
+
+改完任何一份文件后,必须**双向同步 + git 提交**,不能只改一处:
+
+1. **改主副本(hermes 加载的)**:编辑 `~/.hermes/skills/trading/trading-db-daily-check/`
+2. **同步到仓库副本**:`cp -p <hermes-path>/<file> <repo-path>/<file>`(用 `cp -p` 保留时间戳便于审计)
+3. **验证一致**:`for f in SKILL.md scripts/*.py references/*.md prompts/*.md; do diff -q <hermes>/$f <repo>/$f || echo "❌ $f"; done` —— 6 个文件应全部一致
+4. **单独 commit**:`cd ~/TradingDataManager && git add skills/trading-db-daily-check/ && git commit -m "docs(skills): <改动描述>" && git push origin main`
+5. **脚本逻辑改动**还要额外跑一次 sanity check 确认 hermes 副本能正常 exit 0(`python3 <hermes-path>/scripts/hourly_live_check.py --quiet-ok`)
+
+逆方向同理(如果先在仓库副本改,也要 `cp` 回 hermes 副本)。
+
 ## 通用约定
 
 - **不要**修改生产 plist / 数据 / launchd 配置(只读+审计)
