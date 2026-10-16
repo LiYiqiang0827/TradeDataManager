@@ -143,12 +143,17 @@ python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/online_daily_aud
 
 4. **修复前确认影响范围**:对该 kind 的每个有问题的 trade_date,看 quarantine 行数 vs 同 kind 正常日的行数(数千级 → 全天失写;少数 → 部分失写)。
 
-### snapshot_index 已知坑(2026-10-17 发现)
+### snapshot_index 已知坑(2026-10-17 发现 + 已修)
 
-- `persist_client.py` 用 `kind_ts_field = f"{kind}_timestamp"` → 对 `snapshot_index` 要求 stream 里有 `snapshot_index_timestamp` 字段。
-- `service_writeredis_snapshot_index.py` 实际写的是 `snapshot_timestamp`(沿用 snapshot 旧字段名)。
-- 结果:**所有 snapshot_index stream 数据全被丢进 quarantine**,cursor 正常推进,`snapshot_index_YYYYMMDD` 表永远不建。
-- 这是一个跨文件的字段命名 bug;本 skill 只检测、不修复 —— **修复归 service 层**。
+- 根因:`persist_client.py` 用 `kind_ts_field = f"{kind}_timestamp"` 模板读 stream → 对 `snapshot_index` 要求 stream 里有 `snapshot_index_timestamp` 字段;`service_writeredis_snapshot_index.py` 实际写的是 `snapshot_timestamp`(沿用 snapshot 旧字段名)。
+- 现象:**所有 snapshot_index stream 数据全被丢进 quarantine**,cursor 正常推进,`snapshot_index_YYYYMMDD` 表永远不建。诊断 4 步见上方。
+- 修复策略(2026-10-17 实测):**双写兼容**,不重命名(避免破坏已落地的数据)。
+  1. **写端**(`service_writeredis_snapshot_index.py` + `redis_online.py:put_snapshots_index_batch`):推新名 `snapshot_index_timestamp`,`data.get` 4 级 fallback 兼容老数据
+  2. **读端**(`persist_client.py`):fallback list 加 `snapshot_timestamp`,让 quarantine 里的历史 payload 能被解析
+  3. **补回**(`onlineDataManager/scripts/service/repair_<kind>_<YYYYMMDD>.py`):从 quarantine 表 `payload_json` 反序列化 → `INSERT OR IGNORE` 到缺失的 `kind_YYYYMMDD` 表
+  4. **验证**:再跑 `online_daily_audit.py`,从 exit 1 → exit 0;`SELECT COUNT(*)` 应有 3800+ 行
+- **同类问题复用**:任何 `online:<kind>:stream` 报 `kind_YYYYMMDD` 表不存在 + quarantine 有数千条 `missing_or_invalid_source_timestamp`,本质都是同一种"stream 字段名 <kind>_timestamp 错配"。先查 `service_writeredis_<kind>.py` 实际 setdefault 的字段名,再查 `persist_client.py` 的 `kind_ts_field` 期望,差在哪改哪,**双写兼容**永远比"重命名"安全。
+- **写补回脚本的模板**:用 venv 的 python(因 `coreClient` 是 editable 安装),`from core import sqlite_client`,`payload_json` 反序列化的字段要按 `sqlite_client._KIND_COLUMNS[<kind>]` 的顺序对齐。
 
 ## 参考配置
 
