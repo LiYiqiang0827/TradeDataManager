@@ -110,7 +110,11 @@ def run_index_loop(
         try:
             quotes = fetch_index_snapshot(INDEX_LIST)
             # v6.14 清理:删 snapshot_unix_ms 死字段(变量名错 + 落盘不用);
-            # snapshot_timestamp 同花顺 envelope.data.timestamp 必给,毫秒 int(秒级精度,末3位000)
+            # snapshot_index_timestamp 同花顺 envelope.data.timestamp 必给,毫秒 int(秒级精度,末3位000)
+            # 字段名 2026-10-17 v3 修正:必须用 <kind>_timestamp 模板
+            # 原因:persist_client.py 用 kind_ts_field = f"{kind}_timestamp" 解析,旧名 "snapshot_timestamp"
+            #       与 snapshot stream 同名,导致 10/16 全天 3800 条数据被丢进 quarantine,
+            #       cursor 以为写完但 snapshot_index_20261016 表实际未建
             now_dt = datetime.now()
             now_iso = now_dt.isoformat(timespec="milliseconds")
 
@@ -120,7 +124,7 @@ def run_index_loop(
                 ts_code = q.get("thscode") or q.get("ts_code")
                 if not ts_code:
                     continue
-                q.setdefault("snapshot_timestamp", now_iso)     # 兜底,实际同花顺必给
+                q.setdefault("snapshot_index_timestamp", now_iso)  # 兜底,实际同花顺必给
                 items.append((ts_code, q))
             written = redis_client.put_snapshots_index_batch(items)
             # ★ 一轮末尾聚合写 snapshot_index:archive + timeline(无 lunch 动态,固定 6h)
@@ -169,7 +173,7 @@ def main() -> int:
                 ts_code = q.get("thscode") or q.get("ts_code")
                 if not ts_code:
                     continue
-                q.setdefault("snapshot_timestamp", now_iso)     # 兜底,实际同花顺必给
+                q.setdefault("snapshot_index_timestamp", now_iso)  # 兜底,实际同花顺必给
                 items.append((ts_code, q))
             written = r.put_snapshots_index_batch(items)
             archive_key = r.commit_snapshots_index_batch(items, now_dt=now_dt)

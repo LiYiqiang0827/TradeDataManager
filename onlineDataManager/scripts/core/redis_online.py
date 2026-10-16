@@ -771,23 +771,33 @@ class OnlineRedis(RedisBase):
             if not ts_code:
                 continue
 
-            # 数据时间戳处理
-            snap_ts_raw = data.get("snapshot_timestamp")
+            # 数据时间戳处理(2026-10-17 v3:支持 <kind>_timestamp 新模板 + snapshot_timestamp 兼容旧 stream)
+            # 修复 10/16 snapshot_index_20261016 表缺失 bug:
+            #   - 旧代码:ts_field="snapshot_timestamp" → stream 字段名是 snapshot_timestamp
+            #   - persist_client 用 kind_ts_field = f"{kind}_timestamp" = "snapshot_index_timestamp" 解析
+            #   - 字段名不匹配 → 3800 条全被丢进 quarantine → 表未建但 cursor 推进
+            #   - 修复:stream 字段改 "snapshot_index_timestamp"(治本)+ 兼容读旧名(过渡)
+            snap_ts_raw = data.get("snapshot_index_timestamp")
+            if snap_ts_raw is None:
+                # 兼容旧 stream 字段(10/16 之前 + 历史 quarantine 数据回填)
+                snap_ts_raw = data.get("snapshot_timestamp")
             if snap_ts_raw is None:
                 legacy = data.get("data_timestamp")
                 if legacy is not None:
                     snap_ts_raw = int(legacy) if float(legacy) > 1e12 else int(legacy) * 1000
-                    data["snapshot_timestamp"] = snap_ts_raw
             if snap_ts_raw is None:
                 snap_ts_raw = int(save_ts * 1000)
-                data["snapshot_timestamp"] = snap_ts_raw
+            # 统一写入 snapshot_index_timestamp(新字段名)+ snapshot_timestamp(保留兼容)
+            data["snapshot_index_timestamp"] = snap_ts_raw
+            data["snapshot_timestamp"] = snap_ts_raw
             score = float(snap_ts_raw) / 1000.0
 
             # snapshot_index 保留 thscode / ticker(指数对账需要)
+            # ★ 2026-10-17 v3:ts_field 改为 <kind>_timestamp 模板,跟 persist 端对齐
             flat = self._flat_record(
                 ts_code, data,
-                drop_keys=DEFAULT_DROP_KEYS - {"thscode", "ticker", "snapshot_timestamp"},
-                ts_field="snapshot_timestamp", ts_value=snap_ts_raw,
+                drop_keys=DEFAULT_DROP_KEYS - {"thscode", "ticker", "snapshot_timestamp", "snapshot_index_timestamp"},
+                ts_field="snapshot_index_timestamp", ts_value=snap_ts_raw,
             )
             fields_list.append(flat)
 

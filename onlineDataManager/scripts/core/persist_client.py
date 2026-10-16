@@ -251,12 +251,15 @@ def persist_stream_kind(
                 #   - 只保留 <kind>_timestamp(数据时间戳,整数毫秒 → 转 ISO 字符串)
                 #   - created_at 由 SQLite DEFAULT 自动加
                 #   - 不再依赖 save_timestamp / data_timestamp / snap_ts / snap_ts_unix
-                kind_ts_field = f"{kind}_timestamp"  # auction_timestamp / orderbook_timestamp / snapshot_timestamp
+                kind_ts_field = f"{kind}_timestamp"  # auction_timestamp / orderbook_timestamp / snapshot_index_timestamp(2026-10-17 v3 改名)
                 snap_ts_raw = record.get(kind_ts_field)
                 if snap_ts_raw is None:
-                    # 兼容旧字段名(防御性)
+                    # 兼容旧字段名(防御性 + 历史 quarantine 数据回填)
+                    # 2026-10-17 v3:snapshot_index 旧 stream 用 "snapshot_timestamp"(不是 <kind>_timestamp 模板)
+                    #                10/16 全天 3800 条因此被丢进 quarantine,补加此 fallback 让历史可读
                     snap_ts_raw = (
-                        record.get("data_timestamp")
+                        record.get("snapshot_timestamp")    # snapshot_index 历史 stream 字段名(2026-10-16 之前)
+                        or record.get("data_timestamp")
                         or record.get("snap_ts_unix")
                     )
                 ts_dt = _parse_stream_event_timestamp(snap_ts_raw)
