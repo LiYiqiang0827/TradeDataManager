@@ -1,68 +1,55 @@
-# cronjob_manage 参考配置
+# Hermes cron 配置与检查
 
-通过 hermes 的 cronjob_manage 工具创建 4 个 job(参考实现)。
+本页按 Mac mini 当前 Hermes 配置编写。4 个任务使用 `~/.hermes/scripts/` 下的 shell wrapper 和 `--no-agent`；wrapper 调用 Hermes skill 副本中的审计脚本，stdout 由 Hermes 投递到飞书。
 
-> **脚本路径选择(2026-10-17 v2)**:
-> - **生产路径(推荐)**:`~/TradingDataManager/skills/trading-db-daily-check/scripts/`
->   —— 跟仓库代码同地,跟生产数据/服务路径同源,提交仓库时跟代码一起被 git 跟踪
-> - **hermes 个人副本**:`~/.hermes/skills/trading/trading-db-daily-check/scripts/`
->   —— 早期安装位置,跟 hermes 自身同一棵 skills 树;hermes 优先从此处加载
->
-> 两个路径**互为同步副本**(同一份代码),选哪个都行,只要保证脚本和 cron 引用一致。
-> 本文档示例使用 hermes 副本路径(`~/.hermes/skills/...`),如有变化请用 `${SKILL_SCRIPTS}` 替换。
+## 当前任务
 
-## Job 1 — 每小时 scheduler 保活
+| 任务 | 时间表 | wrapper | 模式 | 投递目标 |
+|---|---|---|---|---|
+| `trading_db_hourly_live_check` | `0 * * * *` | `trading_db_hourly.sh` | no-agent | `feishu:oc_a9a10ba69444bf3144cb08e5e353052a` |
+| `trading_db_offline_audit_0915` | `15 9 * * 1-5` | `trading_db_offline_audit.sh` | no-agent | 同上 |
+| `trading_db_offline_audit_2200` | `0 22 * * 1-5` | `trading_db_offline_audit.sh` | no-agent | 同上 |
+| `trading_db_online_audit` | `30 16 * * 1-5` | `trading_db_online_audit.sh` | no-agent | 同上 |
 
-```python
-cronjob_manage(action="create", job={
-    "name": "trading_db_hourly_live_check",
-    "schedule": "0 * * * *",  # 每小时整点
-    "command": "python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/hourly_live_check.py --quiet-ok 2>&1 | lark-cli im +messages-send --chat-id oc_a9a10ba69444bf3144cb08e5e353052a --content @-",
-    "enabled": True,
-})
+检查任务是否已存在及最近执行情况：
+
+```bash
+hermes cron list
+hermes cron runs <job-id> --limit 10
+hermes cron status
 ```
 
-(全天每小时跑,包括周末;因为是保活检查,周末也要看 scheduler 是否挂了)
+查看 wrapper 和对应脚本：
 
-## Job 2 — 工作日 09:15 + 22:00 offline 数据库日检
-
-```python
-cronjob_manage(action="create", job={
-    "name": "trading_db_offline_morning_audit",
-    "schedule": "15 9 * * 1-5",  # 周一到周五 09:15
-    "command": "python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/offline_daily_audit.py 2>&1 | lark-cli im +messages-send --chat-id oc_a9a10ba69444bf3144cb08e5e353052a --content @-",
-    "enabled": True,
-})
-cronjob_manage(action="create", job={
-    "name": "trading_db_offline_evening_audit",
-    "schedule": "0 22 * * 1-5",  # 周一到周五 22:00
-    "command": "python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/offline_daily_audit.py --verbose 2>&1 | lark-cli im +messages-send --chat-id oc_a9a10ba69444bf3144cb08e5e353052a --content @-",
-    "enabled": True,
-})
+```bash
+cat ~/.hermes/scripts/trading_db_hourly.sh
+cat ~/.hermes/scripts/trading_db_offline_audit.sh
+cat ~/.hermes/scripts/trading_db_online_audit.sh
 ```
 
-(晚上 22:00 用 `--verbose` 输出全部表格细节,因为一天数据完整后做最终审查)
+## 创建缺失任务
 
-## Job 3 — 工作日 16:30 online 数据库落盘检查
+先确认 `hermes cron list` 中没有同名任务。Hermes 版本若有参数差异，先查看 `hermes cron create --help`。创建单个任务的命令格式如下：
 
-```python
-cronjob_manage(action="create", job={
-    "name": "trading_db_online_audit",
-    "schedule": "30 16 * * 1-5",  # 周一到周五 16:30
-    "command": "python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/online_daily_audit.py 2>&1 | lark-cli im +messages-send --chat-id oc_a9a10ba69444bf3144cb08e5e353052a --content @-",
-    "enabled": True,
-})
+```bash
+hermes cron create '0 * * * *' \
+  --name trading_db_hourly_live_check \
+  --deliver feishu:oc_a9a10ba69444bf3144cb08e5e353052a \
+  --script trading_db_hourly.sh \
+  --no-agent
 ```
 
-## 关键决策
+其它任务沿用上表的 schedule、name、wrapper 和投递目标。`--script` 接受 `~/.hermes/scripts/` 下的相对文件名；不要把 skill 脚本路径直接填入 `--script`。
 
-- `--quiet-ok` 仅在 hourly 用(只发异常,免得飞书被刷屏)
-- offline morning/evening 不加 quiet — 用户希望"确认更新到哪一天"总要看
-- online 日检也不加 quiet — 用户希望"看完整情况"
-- chat_id 是 Home channel (`oc_a9a10ba69444bf3144cb08e5e353052a`)
+## 退出码与飞书消息
 
-## 脚本副本同步约定
+- wrapper 使用 `exec` 调用 Python 脚本，因此审计脚本的退出码会成为 cron 运行状态。
+- stdout 会直接作为飞书消息；当前 wrapper 不添加 `⚠️` 前缀。
+- 检查脚本应在发现异常时返回非零并输出完整报告；正常时返回 0。hourly 脚本全正常时可以静默。
+- 不要再用 `python script | lark-cli ...` 代替此配置：该管道不是当前 Hermes 工作流，也可能让 shell 返回发送命令的退出码而掩盖审计结果。
 
-`~/TradingDataManager/skills/trading-db-daily-check/`(仓库内,git 跟踪)
-与 `~/.hermes/skills/trading/trading-db-daily-check/`(hermes 加载路径)互为副本。
-**改完一处,记得同步另一处**(脚本内容应保持完全一致)。
+## 同步位置
+
+- Hermes 加载副本：`~/.hermes/skills/trading/trading-db-daily-check/`
+- Git 仓库副本：`~/TradingDataManager/skills/trading-db-daily-check/`
+- 两份目录内容应保持一致。修改后对照 `SKILL.md`、`scripts/`、`references/` 和 `prompts/` 文件，再提交仓库。

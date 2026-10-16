@@ -22,10 +22,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sqlite3
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 # 允许直接执行:与同级 service 脚本一致,只把 SCRIPTS_DIR 加进 sys.path
@@ -49,7 +49,7 @@ def _db_path_for_month(year_month: str) -> Path:
     return base / f"online_data_{year_month}.db"
 
 
-def _fetch_quarantine(conn: sqlite3.Connection, trade_date: int) -> list[dict]:
+def _fetch_quarantine(conn: sqlite3.Connection, trade_date: int) -> tuple[list[dict], int]:
     """从 online_stream_timestamp_quarantine 提取指定 trade_date 的 payload_json"""
     cur = conn.execute(
         """
@@ -61,13 +61,33 @@ def _fetch_quarantine(conn: sqlite3.Connection, trade_date: int) -> list[dict]:
         (f"online:{REPAIR_KIND}:stream", trade_date, REPAIR_KIND),
     )
     rows = []
+    invalid_payload_rows = 0
     for payload_json, stream_id, src_ts in cur.fetchall():
         try:
             payload = json.loads(payload_json)
         except (TypeError, ValueError):
+            invalid_payload_rows += 1
             continue
         rows.append({"payload": payload, "stream_id": stream_id, "src_ts": src_ts})
-    return rows
+    return rows, invalid_payload_rows
+
+
+def _table_stats(db_path: Path, table_name: str) -> tuple[int, int, set[tuple[str, str]]]:
+    """读取目标表行数、代码数和业务键，用于验证回填并支持幂等重跑。"""
+    conn = sqlite3.connect(str(db_path))
+    try:
+        total_rows, code_count = conn.execute(
+            f"SELECT COUNT(*), COUNT(DISTINCT ts_code) FROM {table_name}"
+        ).fetchone()
+        keys = {
+            (str(ts_code), str(snapshot_timestamp))
+            for ts_code, snapshot_timestamp in conn.execute(
+                f"SELECT ts_code, snapshot_timestamp FROM {table_name}"
+            )
+        }
+        return int(total_rows), int(code_count), keys
+    finally:
+        conn.close()
 
 
 def _insert_rows(db_path: Path, table_name: str, columns: list[str], rows: list[tuple]) -> int:
@@ -123,10 +143,23 @@ def repair(trade_date: int, *, dry_run: bool = False, verbose: bool = True) -> d
         "db_path": str(db_path),
         "table_name": table_name,
         "quarantine_rows": 0,
+        "invalid_payload_rows": 0,
         "extracted_rows": 0,
+        "expected_unique_rows": 0,
         "inserted_rows": 0,
+        "verified_rows": 0,
+        "table_rows": 0,
+        "distinct_codes": 0,
         "errors": [],
     }
+
+    try:
+        parsed_date = datetime.strptime(str(trade_date), "%Y%m%d")
+        if parsed_date.strftime("%Y%m%d") != str(trade_date):
+            raise ValueError("trade_date 必须是有效的 YYYYMMDD")
+    except ValueError:
+        result["errors"].append(f"无效 trade_date: {trade_date},应为有效 YYYYMMDD")
+        return result
 
     if not db_path.exists():
         result["errors"].append(f"db 不存在: {db_path}")
@@ -135,10 +168,13 @@ def repair(trade_date: int, *, dry_run: bool = False, verbose: bool = True) -> d
     # 1) 从 quarantine 读 payload_json
     conn = sqlite3.connect(str(db_path))
     try:
-        quarantine_rows = _fetch_quarantine(conn, trade_date)
+        quarantine_rows, invalid_payload_rows = _fetch_quarantine(conn, trade_date)
     finally:
         conn.close()
     result["quarantine_rows"] = len(quarantine_rows)
+    result["invalid_payload_rows"] = invalid_payload_rows
+    if invalid_payload_rows:
+        result["errors"].append(f"有 {invalid_payload_rows} 条 quarantine payload 不是有效 JSON")
 
     if not quarantine_rows:
         result["errors"].append(f"quarantine 表无 trade_date={trade_date} 的数据")
@@ -156,6 +192,17 @@ def repair(trade_date: int, *, dry_run: bool = False, verbose: bool = True) -> d
         except Exception as e:  # noqa: BLE001
             result["errors"].append(f"extract 失败 stream_id={r['stream_id']}: {e}")
     result["extracted_rows"] = len(rows)
+    ts_code_idx = columns.index("ts_code")
+    timestamp_idx = columns.index("snapshot_timestamp")
+    expected_keys = {
+        (str(row[ts_code_idx]), str(row[timestamp_idx]))
+        for row in rows
+    }
+    result["expected_unique_rows"] = len(expected_keys)
+
+    if not rows:
+        result["errors"].append("没有可回填的有效行")
+        return result
 
     if dry_run:
         if verbose:
@@ -175,6 +222,22 @@ def repair(trade_date: int, *, dry_run: bool = False, verbose: bool = True) -> d
     except Exception as e:  # noqa: BLE001
         result["errors"].append(f"INSERT 失败: {e}")
     result["insert_duration_s"] = round(time.time() - t0, 2)
+
+    # 检查所有来源业务键都存在于目标表。重复运行时 inserted_rows=0 仍可成功，
+    # 只要此前写入的行完整；若只写入一部分，则明确报告缺失数并失败。
+    try:
+        table_rows, distinct_codes, table_keys = _table_stats(db_path, table_name)
+        verified_rows = len(expected_keys & table_keys)
+        result["table_rows"] = table_rows
+        result["distinct_codes"] = distinct_codes
+        result["verified_rows"] = verified_rows
+        result["missing_rows"] = len(expected_keys - table_keys)
+        if result["missing_rows"]:
+            result["errors"].append(
+                f"回填核验缺少 {result['missing_rows']} 个来源业务键"
+            )
+    except Exception as e:  # noqa: BLE001
+        result["errors"].append(f"回填后核验失败: {e}")
 
     return result
 
@@ -197,10 +260,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         print(json.dumps(r, ensure_ascii=False, indent=2))
 
-    # 退出码:有 error 或 inserted 0 → 失败
+    # 退出码:提取/写入/核验有错误才失败；幂等重跑允许 inserted_rows 为 0。
     if r["errors"]:
-        return 1
-    if r["inserted_rows"] == 0 and not args.dry_run:
         return 1
     return 0
 

@@ -713,28 +713,32 @@ class OnlineRedis(RedisBase):
     def put_snapshot_index(self, ts_code: str, data: dict) -> None:
         """写单只指数 snapshot_index:STREAM(落盘)+ ZSET window(12h 兜底)
 
-        入参兼容:data['snapshot_timestamp'] 优先,旧版 data['data_timestamp'] 兜底
+        新字段 snapshot_index_timestamp 与旧字段 snapshot_timestamp 双写兼容。
         """
         # 数据时间戳:int 毫秒
-        snap_ts_raw = data.get("snapshot_timestamp")
+        snap_ts_raw = data.get("snapshot_index_timestamp")
+        if snap_ts_raw is None:
+            snap_ts_raw = data.get("snapshot_timestamp")
         if snap_ts_raw is None:
             legacy = data.get("data_timestamp")
             if legacy is not None:
                 snap_ts_raw = int(legacy) if float(legacy) > 1e12 else int(legacy) * 1000
-                data["snapshot_timestamp"] = snap_ts_raw
 
         if snap_ts_raw is not None:
             score = float(snap_ts_raw) / 1000.0
         else:
             score = time.time()
-            data["snapshot_timestamp"] = int(score * 1000)
             snap_ts_raw = int(score * 1000)
+
+        # 与批量写入保持同一字段契约；旧字段供历史消费者兼容。
+        data["snapshot_index_timestamp"] = snap_ts_raw
+        data["snapshot_timestamp"] = snap_ts_raw
 
         # 字段展开 + STREAM 字段序列化
         flat = self._flat_record(
             ts_code, data,
-            drop_keys=DEFAULT_DROP_KEYS - {"snapshot_timestamp"},
-            ts_field="snapshot_timestamp", ts_value=snap_ts_raw,
+            drop_keys=DEFAULT_DROP_KEYS - {"snapshot_timestamp", "snapshot_index_timestamp"},
+            ts_field="snapshot_index_timestamp", ts_value=snap_ts_raw,
         )
 
         window_member = self._encode({"ts_code": ts_code, **data})

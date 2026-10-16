@@ -116,7 +116,8 @@ def run_index_loop(
             #       与 snapshot stream 同名,导致 10/16 全天 3800 条数据被丢进 quarantine,
             #       cursor 以为写完但 snapshot_index_20261016 表实际未建
             now_dt = datetime.now()
-            now_iso = now_dt.isoformat(timespec="milliseconds")
+            # Redis window score 与 persist stream 均使用 unix 毫秒；保持兜底值为数值。
+            fallback_ts_ms = int(now_dt.timestamp() * 1000)
 
             # ★ 与 snapshot 模板对齐:批量写 Redis
             items = []
@@ -124,7 +125,7 @@ def run_index_loop(
                 ts_code = q.get("thscode") or q.get("ts_code")
                 if not ts_code:
                     continue
-                q.setdefault("snapshot_index_timestamp", now_iso)  # 兜底,实际同花顺必给
+                q.setdefault("snapshot_index_timestamp", fallback_ts_ms)  # 兜底,实际同花顺必给
                 items.append((ts_code, q))
             written = redis_client.put_snapshots_index_batch(items)
             # ★ 一轮末尾聚合写 snapshot_index:archive + timeline(无 lunch 动态,固定 6h)
@@ -166,14 +167,15 @@ def main() -> int:
             quotes = fetch_index_snapshot(INDEX_LIST)
             # v6.14 清理:删 snapshot_unix_ms 死字段;now_unix 不再需要
             now_dt = datetime.now()
-            now_iso = now_dt.isoformat(timespec="milliseconds")
+            # Redis window score 与 persist stream 均使用 unix 毫秒；保持兜底值为数值。
+            fallback_ts_ms = int(now_dt.timestamp() * 1000)
 
             items = []
             for q in quotes:
                 ts_code = q.get("thscode") or q.get("ts_code")
                 if not ts_code:
                     continue
-                q.setdefault("snapshot_index_timestamp", now_iso)  # 兜底,实际同花顺必给
+                q.setdefault("snapshot_index_timestamp", fallback_ts_ms)  # 兜底,实际同花顺必给
                 items.append((ts_code, q))
             written = r.put_snapshots_index_batch(items)
             archive_key = r.commit_snapshots_index_batch(items, now_dt=now_dt)

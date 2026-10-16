@@ -1,19 +1,9 @@
-# 飞书消息格式
+# 飞书消息投递约定
 
-每个 cron job 通过 `lark-cli im +messages-send` 把脚本输出发给用户(Home channel)。
+Mac mini 当前审计 cron 使用 Hermes `--no-agent` 和 `~/.hermes/scripts/` 下的 wrapper。Hermes 将 wrapper 的 stdout 原样投递到配置的飞书会话；脚本退出码记录在 cron 运行状态里。该模式不调用本文件作为 prompt，也不会自动根据退出码添加消息前缀。
 
-## 通用约定
+## 审计脚本输出
 
-- **正常**:简洁摘要 + 表格(适用 offline/online 日检)
-- **异常**:脚本 exit 1 时,output 末尾已含"⚠️ 异常汇总"区块
-- **hourly 保活** exit 1 才发飞书(避免每小时都被刷屏)— 通过 `--quiet-ok` flag
-- offline/online 日检 exit 0 也发飞书(用户要"确认"结果)
-
-## 异常前缀
-
-hourly_live_check.py 加前缀 `⚠️ scheduler 异常`;offline/online 加对应 `🗂 offline` / `📡 online` 前缀。
-脚本本身输出已含 emoji 前缀,可直接转发。
-
-## 飞书 message 长度限制
-
-单条 4 KB,long output 会被截断。脚本输出 ~5 KB 上下,够用。
+- `hourly_live_check.py --quiet-ok`：全正常时不输出，因此 watchdog 不发消息；发现问题时输出完整诊断并以非零码退出。
+- `offline_daily_audit.py` 和 `online_daily_audit.py`：输出检查日期、结果表格及异常汇总；完整 stdout 作为飞书消息。
+- 若以后改成 agent-driven cron，再将此文件作为消息整理提示，并保持原始审计结果、退出码和数据范围清楚可追溯。

@@ -1,7 +1,7 @@
 ---
 name: trading-db-daily-check
 description: 每日股票数据库自动体检 — offline/online scheduler 保活 + offline 表更新一致性 + online 落盘完整性,4 个 cron job(offline 09:15/22:00 拆开)通过飞书汇报。
-version: 1.1
+version: 1.2
 created: 2026-10-17
 updated: 2026-10-17
 ---
@@ -15,7 +15,7 @@ updated: 2026-10-17
 - 用户说"检查 online 数据库有没有断点"
 - 用户说"跑一下每日股票数据库体检"
 - 用户说"为什么 `kind_YYYYMMDD` 表不存在" — 配合下方"online 表缺失诊断"
-- 任何 cron job 定时调用本 skill 的 4 个审计脚本时
+- 任何 cron job 定时调用本 skill 的审计脚本时
 
 ## 三个审计脚本
 
@@ -80,7 +80,7 @@ skill 自带 3 个独立脚本,各自有详细自检能力:
 
 - **不要**修改生产 plist / 数据 / launchd 配置(只读+审计)
 - **凭证安全**:`~/TradingDataManager/.env` 含 `TUSHARE_TOKEN` 等,绝不打印到日志或飞书(出现时替换为 `[REDACTED]`)
-- **退出码语义**:所有脚本 `0 = 全部正常`,`1 = 有异常`,cron 触发飞书时用 `exit_code` 决定是否加 "⚠️" 前缀
+- **退出码语义**:所有脚本 `0 = 全部正常`,`1 = 有异常`;Hermes 会保留运行状态并直接投递 stdout。当前 wrapper 不会自动给消息加 "⚠️" 前缀。
 - **工作日判定**: `datetime.now().weekday() < 5` 是周一到周五;用户在最初要求"双休日不做",`hourly_live_check.py` 跑全天(系统级保活),但**offline / online 审计只在工作日跑**(用户在 cron 时间表里配置,见 SKILL 末尾"参考配置")
 
 ## 使用方法
@@ -106,7 +106,7 @@ python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/online_daily_aud
 - `deliver` 用 `feishu:<chat_id>` 格式;`no_agent=true` 时 prompt/skills 被忽略。
 - 错误时脚本**必须** exit 非 0 + 输出完整报告;空 stdout 不发送(watchdog 模式)。
 
-完整配置参考 `references/cron-jobs.example.md`。
+当前 4 个任务、wrapper 和 Hermes CLI 创建方式见 `references/cron-jobs.example.md`。创建前先用 `hermes cron list` 检查是否已存在，避免重复任务。
 
 ### 错误修复
 
@@ -160,7 +160,7 @@ python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/online_daily_aud
 - 根因:`persist_client.py` 用 `kind_ts_field = f"{kind}_timestamp"` 模板读 stream → 对 `snapshot_index` 要求 stream 里有 `snapshot_index_timestamp` 字段;`service_writeredis_snapshot_index.py` 实际写的是 `snapshot_timestamp`(沿用 snapshot 旧字段名)。
 - 现象:**所有 snapshot_index stream 数据全被丢进 quarantine**,cursor 正常推进,`snapshot_index_YYYYMMDD` 表永远不建。诊断 4 步见上方。
 - 修复策略(2026-10-17 实测):**双写兼容**,不重命名(避免破坏已落地的数据)。
-  1. **写端**(`service_writeredis_snapshot_index.py` + `redis_online.py:put_snapshots_index_batch`):推新名 `snapshot_index_timestamp`,`data.get` 4 级 fallback 兼容老数据
+  1. **写端**(`service_writeredis_snapshot_index.py` + `redis_online.py:put_snapshots_index_batch` + 单条兼容接口):推新名 `snapshot_index_timestamp`,同时保留 `snapshot_timestamp`;缺时间戳时使用 unix 毫秒兜底
   2. **读端**(`persist_client.py`):fallback list 加 `snapshot_timestamp`,让 quarantine 里的历史 payload 能被解析
   3. **补回**(`onlineDataManager/scripts/service/repair_<kind>_<YYYYMMDD>.py`):从 quarantine 表 `payload_json` 反序列化 → `INSERT OR IGNORE` 到缺失的 `kind_YYYYMMDD` 表
   4. **验证**:再跑 `online_daily_audit.py`,从 exit 1 → exit 0;`SELECT COUNT(*)` 应有 3800+ 行
@@ -169,7 +169,7 @@ python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/online_daily_aud
 
 ## 参考配置
 
-完整的 cron job 配置示例见 `references/cron-jobs.example.md`(创建用 `cronjob_manage action=create`)。
+当前 cron job 配置和 Hermes CLI 示例见 `references/cron-jobs.example.md`。
 
 ## 注意事项
 
