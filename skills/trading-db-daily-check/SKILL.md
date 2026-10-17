@@ -23,7 +23,7 @@ skill 自带 3 个独立脚本,各自有详细自检能力:
 
 1. **`hourly_live_check.py`** — Scheduler 保活/每 1h 跑
    - launchd 3 个服务 PID 检查: `com.tradingdatamanager.scheduler.{offlineData,onlineData}` + `com.tradingdatamanager.redis6380`
-   - offline/online db 文件 mtime 新鲜度(分市场时段 + 非交易日不告警)
+   - offline/online db 文件 mtime 新鲜度(**必须**同时看工作日 + 小时(9-16),否则周末整天会走 STALE 分支误报)
    - offline scheduler stderr log 最近写入时间(loguru 默认走 stderr)
    - redis 健康(通过 redis-cli PING,本地)
    - **正常 exit 0,异常 exit 1**
