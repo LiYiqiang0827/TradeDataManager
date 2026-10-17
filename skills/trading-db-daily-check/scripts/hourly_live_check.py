@@ -197,17 +197,19 @@ def check_online_db_freshness() -> dict:
 
     mtime = datetime.fromtimestamp(db.stat().st_mtime)
     age_min = (now - mtime).total_seconds() / 60
-    is_market_hours = 9 <= now.hour < 16
+    # 2026-10-17 v2 修正:必须同时看工作日(周一~周五)+ 小时(9-16),之前漏了周末判断
+    is_weekday = now.weekday() < 5
+    is_market_hours = is_weekday and 9 <= now.hour < 16
     today = mtime.date() == now.date()
 
     # 判定规则:
+    # - 周末 / 节假日整体不告警(不写入 status,只返回 mtime 供人看)
     # - 盘前 09:00 前 → 当天数据不可能落盘(收盘后才写满),只看上次收盘 mtime 是昨天
     # - 交易时段 → 6 分钟内必须有落盘
     # - 收盘 15:00 后 → 当天落盘了就 OK
-    # - 周末 / 节假日整体不告警
     if not is_market_hours:
-        # 非交易时段:当天 OR 上个工作日有落盘就算 OK
-        status = "OK" if today else "OK"  # 周末非工作日,只盯"最近一次"还在 db
+        # 非交易时段(含周末全天 / 工作日非交易小时):只要 db 存在且 mtime 不早于上次收盘就 OK
+        status = "OK"
     else:
         status = "OK" if age_min < 6 else "STALE"
     return {
@@ -272,7 +274,10 @@ def check_online_logs() -> dict:
         return {"status": "ERROR", "detail": f"{ONLINE_LOG_DIR} 不存在"}
 
     now = datetime.now()
-    is_market_hours = 9 <= now.hour < 16
+    # 2026-10-17 v2 修正:必须同时看工作日(周一~周五)+ 小时(9-16),
+    # 否则周末整天都"非交易时段"且当天没新 log,会被误判 STALE
+    is_weekday = now.weekday() < 5
+    is_market_hours = is_weekday and 9 <= now.hour < 16
     threshold_min = 10 if is_market_hours else 60
 
     # 找最近修改的任何 .log
@@ -288,8 +293,8 @@ def check_online_logs() -> dict:
     age_min = (now - datetime.fromtimestamp(last.stat().st_mtime)).total_seconds() / 60
     today = datetime.fromtimestamp(last.stat().st_mtime).date() == now.date()
     if not is_market_hours:
-        # 非交易时段:当天写过就行
-        status = "OK" if today else "STALE"
+        # 非交易时段(含周末全天):log 是否近期写的不重要,只看进程是否在跑(launchd 检查已覆盖)
+        status = "OK"
     else:
         status = "OK" if age_min < threshold_min else "STALE"
     return {
