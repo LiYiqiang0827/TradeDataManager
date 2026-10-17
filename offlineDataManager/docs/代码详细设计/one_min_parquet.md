@@ -78,7 +78,14 @@ PYTHONPATH=.:offlineDataManager/scripts .venv/bin/python \
 # 指定单日
 PYTHONPATH=.:offlineDataManager/scripts .venv/bin/python \
   offlineDataManager/scripts/service/service_oneMinute.py --trade-date 20260924
+
+# 修复指定股票在已有完整正式分区中的缺失分钟，并原子合并回Parquet
+PYTHONPATH=.:offlineDataManager/scripts .venv/bin/python \
+  offlineDataManager/scripts/service/service_oneMinute.py \
+  --trade-date 20260924 --ts-codes 000001.SZ,600000.SH --force --merge-existing
 ```
+
+`--merge-existing` 仅接受单日和明确的股票清单，并要求 `--force`。服务会把下载结果先写入staging，再与该日已有正式分区合并、校验日线实际交易股票集合，最后原子替换正式分区；若现有分区不完整或校验失败，正式数据不会被替换。未传 `--merge-existing` 的 `--ts-codes` 行为保持不变，只写staging。
 
 ## 历史CSV导入
 

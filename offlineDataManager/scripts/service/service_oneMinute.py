@@ -157,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--catalog", default=str(ONE_MIN_CATALOG_PATH))
     parser.add_argument("--stage-root", default=str(ONE_MIN_DATA_DIR / "tdx_stage"))
     parser.add_argument("--ts-codes", help="逗号分隔；不传则全部沪深北上市股票")
+    parser.add_argument("--merge-existing", action="store_true", help="指定股票模式下将staging合并到已有完整正式分区")
     parser.add_argument("--trade-date", help="单日模式")
     parser.add_argument("--start-date", default=TDX_ONE_MIN_START)
     parser.add_argument("--end-date", help="默认最近已完成交易日")
@@ -172,6 +173,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--keep-stage", action="store_true")
     args = parser.parse_args(argv)
+    if args.merge_existing and (not args.ts_codes or not args.trade_date):
+        parser.error("--merge-existing必须与--ts-codes和--trade-date一起使用")
+    if args.merge_existing and not args.force:
+        parser.error("--merge-existing必须与--force一起使用，确保修复已标记覆盖的缺口")
+    if args.merge_existing and args.limit:
+        parser.error("--merge-existing不能与--limit一起使用")
 
     output_root = Path(args.output_root).expanduser()
     catalog = ensure_tdx_one_min_catalog(Path(args.catalog).expanduser())
@@ -316,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     if stats["failed"]:
         logger.error(f"存在{stats['failed']}只下载失败；保留staging供下次断点续传，不替换正式分区")
         return 1
-    if args.limit or args.ts_codes:
+    if args.limit or (args.ts_codes and not args.merge_existing):
         logger.info("部分股票模式仅完成下载与staging，不替换全市场正式分区")
         return 0
 
