@@ -1,7 +1,7 @@
 ---
 name: trading-db-daily-check
 description: 每日股票数据库自动体检 — offline/online scheduler 保活 + offline 表更新一致性 + online 落盘完整性,4 个 cron job(offline 09:15/22:00 拆开)通过飞书汇报。
-version: 1.2
+version: 1.3
 created: 2026-10-17
 updated: 2026-10-17
 ---
@@ -32,12 +32,17 @@ skill 自带 3 个独立脚本,各自有详细自检能力:
    - 跨 4 个 db(`db_cn_basic/kpl/news/index`)逐表对照:
      - ctrl 表的 `key + max_date + updated_at`
      - 数据表的 `MAX(trade_date / cal_date / datetime)`
+   - 先比较 ctrl 与物理表的 `MAX` 日期(日期差绝对值 >1 天告警),再按已登记的数据源发布时间规则检查时效
+   - `tbl_cn_kpl_list`(`pro.kpl_list`) 为 T+1 次日早间数据:
+     - 每日 09:05 前,预期日期按前一个自然日之前最近的开市日计算(周一早上仍预期上周五)
+     - 09:05 后,预期最近一个已完成交易日的数据;交易日历自动跳过周末和节假日
+     - freshness 同时要求 ctrl 与物理表达到预期日期,防止两边一起落后却显示一致
    - 三类区分:
-     - 日增量表(参与滞后判定,>1 天滞后告警)
+     - 日增量表(仅按有证据的数据源发布时间规则判新鲜度;未登记的表不套用统一“今天”时限)
      - 静态表(basic/tradecal/index_basic)— 只看 ctrl_updated_at 是否 < 7 天
      - 派生表(week/month)— 无 ctrl,不参与判定
    - news 表按 `src` 而非 `key` 看 max_date,`fenghuang / yuncaijing` 卡在 09-10 是已知停更,不告警
-   - A 股交易日历(从 basic db 读)对照期望最新交易日
+   - A 股交易日历(从 basic db 读)按检查时点计算最新已完成交易日;未收盘的当天不计入
 
 3. **`online_daily_audit.py`** — 16:30 工作日跑一次
    - 10 个 kind(anomaly/auction/break/hot/limitperformance/minute/snapshot/snapshot_index/watchlist/zt)×最近 7 个交易日的表覆盖检查
@@ -128,6 +133,7 @@ python3 ~/.hermes/skills/trading/trading-db-daily-check/scripts/online_daily_aud
 - **静态表**(只看 ctrl_updated_at < 7 天,不看滞后):
   - `tbl_cn_basic`, `tbl_cn_tradecal`, `tbl_cn_index_basic`
 - **派生表**(week/month):`is_derived=True`, 不告警
+- **T+1 发布表**:`tbl_cn_kpl_list` 在次日 09:05 前按发布时间豁免最新交易日要求,之后检查最近已完成交易日;报告会展示“应到日期”
 
 如果发现新的"已知异常",在脚本顶部对应的常量集合里加,不要新写判断逻辑。
 

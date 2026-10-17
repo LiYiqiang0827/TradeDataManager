@@ -7,9 +7,9 @@
 检测内容(2026-10-17 实战确认 5 类):
   1. 每个 db 的 ctrl 表 → key + max_date + updated_at
   2. 每个 db 的数据表 → SELECT MAX(trade_date) FROM tbl_xxx
-  3. ctrl vs 数据表实际 MAX 一致性检查(数据落后 ctrl = 数据没真正落;ctrl 落后数据 = ctrl 没更新)
-  4. 对照 A 股交易日历:今天 / 昨天 是不是交易日?期望看到 ctrl_max = expected_today
-  5. 整体一致性:数据表 MAX >= ctrl - 1 天 (允许一天滞后)
+  3. ctrl vs 数据表实际 MAX 一致性检查(双向日期差绝对值不超过 1 天)
+  4. 对照 A 股交易日历计算最新已完成交易日
+  5. 对有明确规则的数据源按发布时间检查时效(如 pro.kpl_list 次日 09:05)
 
 输出:飞书卡片,正常给简洁摘要,异常给每张表详情。
 
@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 DB_DIR = Path.home() / "TradingDatabase" / "offline"
@@ -101,6 +101,13 @@ WHERE is_open = 1
 ORDER BY cal_date DESC
 LIMIT 30
 """
+
+# 数据源有明确延迟规则时在此登记，避免把“最新交易日”误当成所有表的
+# 当日应到日期。Tushare pro.kpl_list 在次日早上更新，scheduler 09:05 运行。
+KPL_LIST_PUBLISH_TIME = time(9, 5)
+TABLE_FRESHNESS_POLICIES = {
+    "tbl_cn_kpl_list": "kpl_list_t_plus_one_morning",
+}
 
 
 def _open(db_filename: str) -> sqlite3.Connection:
@@ -211,24 +218,36 @@ def _recent_trade_dates(n: int = 10) -> list[str]:
         conn.close()
 
 
-def _expected_latest_trade_date() -> str | None:
-    """最新已收盘的交易日 = A 股交易日历 <= 今天的最近一天。
-
-    注意:tushare 拉过的 tradecal 可能含未来预填(2026-10-17 实战:有 20261231),
-    所以必须加 WHERE cal_date <= today 过滤。
-    """
-    today = datetime.now().strftime("%Y%m%d")
+def _latest_open_date_on_or_before(cutoff: datetime) -> str | None:
+    """交易日历中不晚于 cutoff 日期的最近开市日。"""
+    cutoff_date = cutoff.strftime("%Y%m%d")
     conn = _open("db_cn_basic.db")
     try:
-        rows = conn.execute(
+        row = conn.execute(
             "SELECT cal_date FROM tbl_cn_tradecal "
             "WHERE is_open = 1 AND cal_date <= ? "
-            "ORDER BY cal_date DESC LIMIT 5",
-            (today,),
-        ).fetchall()
-        return rows[0][0] if rows else None
+            "ORDER BY cal_date DESC LIMIT 1",
+            (cutoff_date,),
+        ).fetchone()
+        return row[0] if row else None
     finally:
         conn.close()
+
+
+def _expected_latest_trade_date(as_of: datetime | None = None) -> str | None:
+    """截至检查时点最新已收盘的交易日，不把尚未收盘的当天算作完成。"""
+    as_of = as_of or datetime.now()
+    cutoff = as_of - timedelta(days=1) if as_of.time() < time(15, 0) else as_of
+    return _latest_open_date_on_or_before(cutoff)
+
+
+def _expected_kpl_list_date(as_of: datetime) -> str | None:
+    """KPL list 是 T+1 数据:次日 09:05 更新后才要求前一自然日数据。
+
+    09:05 前再向前退一天；交易日历负责跳过周末和节假日。
+    """
+    days_back = 1 if as_of.time() >= KPL_LIST_PUBLISH_TIME else 2
+    return _latest_open_date_on_or_before(as_of - timedelta(days=days_back))
 
 
 def _normalize_date(s: str | None) -> str | None:
@@ -248,12 +267,18 @@ def audit() -> dict:
     news_ctrl = _news_summary()
 
     # 计算一致性
-    expected = _normalize_date(_expected_latest_trade_date())
+    as_of = datetime.now()
+    expected = _normalize_date(_expected_latest_trade_date(as_of))
+    freshness_expected = {
+        "kpl_list_t_plus_one_morning": _normalize_date(_expected_kpl_list_date(as_of)),
+    }
     for r in rows:
         ctrl_max_n = _normalize_date(r["ctrl_max"])
         table_max_n = _normalize_date(r["table_max"])
         r["ctrl_max_n"] = ctrl_max_n
         r["table_max_n"] = table_max_n
+        policy = TABLE_FRESHNESS_POLICIES.get(r["table"])
+        r["freshness_expected_date"] = freshness_expected.get(policy)
 
         if r.get("is_derived"):
             r["status"] = "OK"
@@ -273,20 +298,34 @@ def audit() -> dict:
                 r["lag_days"] = None
             continue
 
-        # 一致性:ctrl == table_max(允许 1 天滞后)
+        # 一致性:ctrl 与表内 MAX 的日期差绝对值不超过 1 天。
         if ctrl_max_n and table_max_n:
             diff = (
                 datetime.strptime(ctrl_max_n, "%Y%m%d")
                 - datetime.strptime(table_max_n, "%Y%m%d")
             ).days
-            r["lag_days"] = diff
-            r["status"] = "OK" if diff <= 1 else "LATE"
+            r["ctrl_table_diff_days"] = diff
+            r["lag_days"] = abs(diff)
+            r["status"] = "OK" if abs(diff) <= 1 else "LATE"
         elif not table_max_n:
             r["lag_days"] = None
             r["status"] = "EMPTY"
         else:
             r["lag_days"] = None
             r["status"] = "NO_CTRL"
+
+        # ctrl 与物理表可能同时落后，所以对有明确发布时间的数据源单独
+        # 检查时效；取两者较旧日期，避免仅更新一侧就被判为已到齐。
+        expected_date = r.get("freshness_expected_date")
+        if expected_date and ctrl_max_n and table_max_n:
+            actual_date = min(ctrl_max_n, table_max_n)
+            r["freshness_actual_date"] = actual_date
+            r["freshness_late"] = actual_date < expected_date
+            if r["freshness_late"]:
+                r["status"] = "LATE"
+        else:
+            r["freshness_actual_date"] = None
+            r["freshness_late"] = False
 
     # news ctrl 落后判定:每个 src 的 max_date 跟今天日期对比
     today = datetime.now().strftime("%Y%m%d")
@@ -336,7 +375,16 @@ def format_report(report: dict, *, verbose: bool = False) -> str:
         if r["status"] == "OK":
             ok_count += 1
         elif r["status"] == "LATE":
-            issues.append(f"⚠️ {r['db']}/{r['table']}: ctrl={r['ctrl_max']} 数据={r['table_max']} 滞后 {r['lag_days']} 天")
+            if r.get("freshness_late"):
+                issues.append(
+                    f"⚠️ {r['db']}/{r['table']}: 尚未达到数据源发布时间要求 "
+                    f"(应到={r['freshness_expected_date']}, ctrl={r['ctrl_max']}, 数据={r['table_max']})"
+                )
+            else:
+                issues.append(
+                    f"⚠️ {r['db']}/{r['table']}: ctrl={r['ctrl_max']} 数据={r['table_max']} "
+                    f"日期差 {r.get('ctrl_table_diff_days', r['lag_days'])} 天"
+                )
         elif r["status"] == "EMPTY":
             issues.append(f"⚠️ {r['db']}/{r['table']}: 表为空 / 无法读 MAX")
         elif r["status"] == "NO_CTRL":
@@ -359,8 +407,8 @@ def format_report(report: dict, *, verbose: bool = False) -> str:
         # 表细节
         lines.append("### 数据表 vs ctrl 一致性")
         lines.append("")
-        lines.append("| db | 数据表 | ctrl key | ctrl_max | 数据 MAX | 滞后 |")
-        lines.append("|---|---|---|---|---|---|")
+        lines.append("| db | 数据表 | ctrl key | ctrl_max | 数据 MAX | 应到日期 | 状态/日期差 |")
+        lines.append("|---|---|---|---|---|---|---|")
         for r in rows:
             if r.get("is_derived"):
                 icon = "↪️"
@@ -370,10 +418,14 @@ def format_report(report: dict, *, verbose: bool = False) -> str:
                 detail = f"{r.get('static_age_h', '-')}h 前"
             else:
                 icon = {"OK": "✅", "LATE": "⚠️", "EMPTY": "❌", "NO_CTRL": "❓"}.get(r["status"], "·")
-                detail = f"{icon} {r.get('lag_days', '-')}"
+                if r.get("freshness_late"):
+                    detail = f"{icon} 未到齐({r.get('freshness_actual_date')})"
+                else:
+                    detail = f"{icon} 日期差 {r.get('ctrl_table_diff_days', r.get('lag_days', '-'))}"
             lines.append(
                 f"| {r['db'][:10]} | {r['table']} | {r['ctrl_key'] or '-'} | "
-                f"{r['ctrl_max'] or '-'} | {r['table_max'] or '-'} | {detail} |"
+                f"{r['ctrl_max'] or '-'} | {r['table_max'] or '-'} | "
+                f"{r.get('freshness_expected_date') or '-'} | {detail} |"
             )
         lines.append("")
 
