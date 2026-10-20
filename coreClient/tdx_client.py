@@ -700,8 +700,8 @@ class TdxClient:
                     "high": float(row["high"]),
                     "low": float(row["low"]),
                     "close": float(row["close"]),
-                    "vol": float(row["vol"]),
-                    "amount": float(row["amount"]),
+                    "vol": float(correct_pytdx_zero_volume_sentinel(row["vol"])),
+                    "amount": float(correct_pytdx_zero_volume_sentinel(row["amount"])),
                 }
                 selected[dt] = normalized
 
