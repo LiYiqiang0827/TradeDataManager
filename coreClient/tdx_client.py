@@ -73,6 +73,21 @@ if not logger.handlers:
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
+# A machine-local tdx_config.py can override public defaults. An empty tuple is
+# not a valid override: it silently filters every native 15-minute bar and makes
+# a healthy source look like a full-market empty response. Keep the canonical
+# TDX labels as a fail-safe for older or incomplete local configs.
+_DEFAULT_15MIN_BAR_TIMES = (
+    "09:45", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30",
+    "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00",
+)
+_15MIN_BAR_TIMES = tuple(TDX_15MIN_BAR_TIMES) or _DEFAULT_15MIN_BAR_TIMES
+if not TDX_15MIN_BAR_TIMES:
+    logger.warning(
+        "TDX_15MIN_BAR_TIMES为空，本次使用内置A股15分钟时间标签；"
+        "请修复本机coreClient/tdx_config.py配置"
+    )
+
 
 # ============================================================
 # 2026-09-12 新增:ts_code 解析 + datetime 计算 helpers
@@ -671,7 +686,7 @@ class TdxClient:
                 if end_int is not None and row_date > end_int:
                     continue
                 label = f"{int(row['hour']):02d}:{int(row['minute']):02d}"
-                if label not in TDX_15MIN_BAR_TIMES:
+                if label not in _15MIN_BAR_TIMES:
                     continue
                 dt = f"{row_date:08d} {label}"
                 normalized = {
