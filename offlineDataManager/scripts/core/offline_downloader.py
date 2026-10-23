@@ -2419,9 +2419,10 @@ class CNDataDown:
         落库到 minute_index kind(同 db 文件、不同表 + 不同 ctrl)。
         """
         raise RuntimeError(
-            "legacy policy_minute.db/tbl_minute_index writes are disabled: no "
-            "verified index-specific native one-minute source contract is configured. "
-            "Keep the legacy index series read-only until a separate index source is validated."
+            "legacy policy_minute.db/tbl_minute_index stays read-only. "
+            "The verified index-specific get_index_bars source now writes "
+            "db_cn_index_minute.db through service_intraday_index; read it with "
+            "coreClient.data_provider.get_index_oneMin/get_index_fifteenMin."
         )
         if not force and has_data("minute_index", ts_code, trade_date):
             return 0

@@ -1,93 +1,96 @@
+"""Update all eight dashboard indices from TDX's index-specific K-line decoder.
+
+Canonical storage: TradingDatabase/offline/db_cn_index_minute.db. Legacy policy
+index rows stay read-only. Both 1-minute and native 15-minute sessions are updated.
 """
-service_intraday_index.py — 大盘指数分钟 K 更新(2026-09-17 新增)
+from __future__ import annotations
 
-数据源:tdx get_history_minute_time_data(对指数代码也直接支持)
-落库:policy_minute.db / tbl_minute_index + tbl_minute_index_ctrl
-
-特殊:
-  - 不用 watchlist(指数是固定 5 个,跟具体股票无关)
-  - 指数列表固定 INDEX_CODES_HERE(000001.SH/399001.SZ/399006.SZ/000688.SH/000016.SH)
-  - 日期参数只有两种模式: --trade-date 单日 / --start-date~--end-date 日期段
-
-示例:
-  # 单日 5 指数
-  python3 service_intraday_index.py --trade-date 2026-08-28
-
-  # 日期段 5 指数 × N 个交易日
-  python3 service_intraday_index.py --start-date 2026-08-26 --end-date 2026-08-28
-"""
-import sys, time, argparse
+import argparse
+import datetime as dt
+import json
+import os
 from pathlib import Path
-from loguru import logger
+import sqlite3
+import sys
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
-sys.path.insert(0, str(PROJECT_ROOT.parent / "coreClient"))
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "offlineDataManager" / "scripts"))
+from coreClient.index_minute import INDEX_CODES, IndexMinuteDownloader, database_path, day_key
+from service.common import latest_completed_trade_date
 
-from core.offline_downloader import CNDataDown, INDEX_CODES_HERE
-from core.offline_db_client import ensure_schema
-from tdx_client import TdxClient
-from service.common import (
-    build_index_pairs, run_market_loop, add_market_args,
-)
+
+def validate_sessions(rows, basic_path, daily_path, end):
+    days = sorted({row["trade_date"] for row in rows})
+    with sqlite3.connect(basic_path) as conn:
+        expected = {str(row[0]) for row in conn.execute("SELECT cal_date FROM tbl_cn_tradecal WHERE exchange='SSE' AND is_open=1 AND cal_date BETWEEN ? AND ?", (days[0], end))}
+    missing = sorted(expected - set(days))
+    if missing:
+        raise ValueError(f"missing trading sessions: {missing}")
+    if days[-1] != end:
+        raise ValueError(f"source not current: {days[-1]} != {end}")
+    code = rows[0]["ts_code"]
+    closes = {row["trade_date"]: row["close"] for row in rows}
+    with sqlite3.connect(daily_path) as conn:
+        daily = conn.execute("SELECT trade_date,close FROM tbl_cn_index_daily WHERE ts_code=? AND trade_date BETWEEN ? AND ?", (code, days[0], end)).fetchall()
+    differences = [(day, abs(closes[day] / float(close) - 1), abs(closes[day] - float(close))) for day, close in daily if day in closes and close]
+    bad = [row for row in differences if row[1] > .001]
+    if bad:
+        raise ValueError(f"index close disagrees with daily reference (>0.1%): {bad[:8]}")
+    return {"expected_sessions": len(expected), "missing_sessions": missing, "daily_close_checks": len(differences),
+            "max_close_difference_points": max((row[2] for row in differences), default=0),
+            "max_close_difference_pct": max((row[1] * 100 for row in differences), default=0)}
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Update 大盘指数分钟 K(tdx → policy_minute.db tbl_minute_index)")
-    # 指数 service 不需要 --watchlist / --ts-codes
-    add_market_args(parser)
-    # 把 --watchlist / --ts-codes 从 args 里删除(指数 service 不接受)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--trade-date")
+    parser.add_argument("--start-date")
+    parser.add_argument("--end-date")
+    parser.add_argument("--all-history", action="store_true", help="Download all complete history sessions the source currently retains")
+    parser.add_argument("--ts-codes", default=",".join(INDEX_CODES))
+    parser.add_argument("--max-pages", type=int, default=80)
     args = parser.parse_args()
-    if args.watchlist or args.ts_codes:
-        logger.error("[service_intraday_index] 指数 service 不接受 --watchlist / --ts-codes,只需日期参数")
-        return 1
-
-    print(
-        "[service_intraday_index] legacy policy-minute index writes are disabled "
-        "until an index-specific native source and volume contract are verified.",
-        file=sys.stderr,
-    )
-    return 2
-
-    log_file = PROJECT_ROOT / "logs" / "service_intraday_index.log"
-    logger.add(str(log_file), rotation="20 MB", level="INFO", enqueue=True)
-
-    pairs = build_index_pairs(args)
-    if not pairs:
-        logger.error("[service_intraday_index] 必须传 --trade-date 或 (--start-date + --end-date)")
-        return 1
-    logger.info(f"[service_intraday_index] 指数列表: {INDEX_CODES_HERE}, 共 {len(pairs)} 对 (5 指数 × {len(pairs)//len(INDEX_CODES_HERE)} 交易日)")
-
-    ensure_schema(db_kind="minute_index", verbose=False)
-
-    t0 = time.time()
-    client = TdxClient()
+    if args.trade_date and (args.start_date or args.end_date or args.all_history):
+        parser.error("--trade-date cannot be combined with a date range/all-history")
+    codes = [code.strip().upper() for code in args.ts_codes.split(",") if code.strip()]
+    if not codes or any(code not in INDEX_CODES for code in codes):
+        parser.error("only the eight configured dashboard indices are supported")
+    data_root = database_path().parent
+    basic_path, daily_path = data_root / "db_cn_basic.db", data_root / "db_cn_index.db"
+    with sqlite3.connect(basic_path) as conn:
+        end = day_key(args.trade_date or args.end_date) if (args.trade_date or args.end_date) else latest_completed_trade_date(conn)
+    report = {"started_at": dt.datetime.now().astimezone().isoformat(), "end_date": end, "results": [], "errors": [],
+              "volume_contract": "raw_volume is TDX index raw data, NOT shares; amount is source-published turnover in yuan and can use an exchange-wide scope"}
+    downloader = IndexMinuteDownloader()
     try:
-        down = CNDataDown()
-        stats = run_market_loop(
-            down, pairs,
-            update_method="update_minute_index",
-            client=client,
-            rate=args.rate,
-            force=args.force,
-            logger=logger,
-        )
-        logger.info(
-            f"[service_intraday_index] 完成: total={stats['total']} "
-            f"inserted={stats['inserted']}({stats['inserted_rows']} 行) "
-            f"skipped={stats['skipped']} failed={stats['failed']} "
-            f"用时 {stats['elapsed']:.1f}s"
-        )
-        return 0
-    except Exception as e:
-        logger.error(f"[service_intraday_index] 失败: {e}", exc_info=True)
-        return 1
+        for code in codes:
+            for period in (1, 15):
+                try:
+                    start = args.trade_date or args.start_date
+                    if not start and not args.all_history and database_path().exists():
+                        with sqlite3.connect(database_path()) as conn:
+                            last = conn.execute("SELECT MAX(trade_date) FROM tbl_cn_index_minute_ctrl WHERE ts_code=? AND period=?", (code, period)).fetchone()[0]
+                        if last:
+                            start = (dt.datetime.strptime(last, "%Y%m%d") - dt.timedelta(days=7)).strftime("%Y%m%d")
+                    item = downloader.update(code, period, start, end, args.max_pages,
+                        validator=lambda rows: validate_sessions(rows, basic_path, daily_path, end))
+                    report["results"].append(item)
+                    print(json.dumps(item, ensure_ascii=False), flush=True)
+                except Exception as exc:
+                    item = {"code": code, "period": period, "error": f"{type(exc).__name__}: {exc}"}
+                    report["errors"].append(item)
+                    print(json.dumps(item, ensure_ascii=False), file=sys.stderr, flush=True)
     finally:
-        try:
-            client.api.disconnect()
-        except Exception:
-            pass
+        downloader.close()
+    report["finished_at"] = dt.datetime.now().astimezone().isoformat()
+    audit_root = data_root / "index_minute_downloads"
+    audit_root.mkdir(exist_ok=True)
+    audit_path = audit_root / (dt.datetime.now().strftime("%Y%m%d_%H%M%S") + ".json")
+    audit_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+    print("audit=" + str(audit_path), flush=True)
+    return 1 if report["errors"] else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

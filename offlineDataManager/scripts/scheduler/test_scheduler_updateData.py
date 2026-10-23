@@ -36,6 +36,7 @@ def test_full_update_refreshes_trade_calendar_before_reading_target(monkeypatch)
             ["--trade-date", scheduler.datetime.now().strftime("%Y%m%d")],
             True,
         ),
+        ("service_intraday_index", [], True),
         ("service_fifteenMinute", [], True),
         ("service_oneMinute", [], True),
     ]

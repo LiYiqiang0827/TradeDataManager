@@ -733,5 +733,9 @@ CREATE TABLE IF NOT EXISTS tbl_index_ctrl (
 );
 """
 
+# 指数周/月线与日线共库，初始化与日线更新共用这份 schema。
+from coreClient.index_period import SCHEMA_SQL_INDEX_PERIOD
+SCHEMA_SQL_INDEX += "\n" + SCHEMA_SQL_INDEX_PERIOD
+
 # 兼容旧代码(SCHEMA_SQL 是 basic schema,db.py init_db 默认建这个)
 SCHEMA_SQL = SCHEMA_SQL_BASIC

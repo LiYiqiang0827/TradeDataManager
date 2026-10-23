@@ -109,6 +109,7 @@ STAGES = [
             ("service_stk_limit", []),      # 涨跌停价格
             ("service_suspend", []),        # 停复牌
             ("service_index_daily", []),    # 12 只指数日线
+            ("service_intraday_index", []), # 8只指数原生1/15分钟，独立校验与落库
         ],
     ),
     (

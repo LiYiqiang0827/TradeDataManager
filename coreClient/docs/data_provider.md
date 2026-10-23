@@ -77,7 +77,9 @@ df = get_day(ts_code="000006.SZ", start_date="2026-09-01", end_date="2026-09-18"
 | # | 接口 | 类别 | 用途 | db 模式 | online 模式 |
 |---|---|---|---|---|---|
 | 1 | `get_minute` | 高频 K | 个股分钟 K(240 根/天) | ✅ | ✅ |
-| 2 | `get_minute_index` | 高频 K | 指数分钟 K(5 指数) | ✅ | ✅ |
+| 2 | `get_minute_index` | 高频 K | 指数分时兼容接口(现支持8指数，vol为万元成交额) | ✅ | ✅ |
+| 2a | `get_index_oneMin` | 指数原生分钟 | 8指数1分钟OHLC/成交额 | ✅ | ✅ |
+| 2b | `get_index_fifteenMin` | 指数原生分钟 | 8指数15分钟OHLC/成交额 | ✅ | ✅ |
 | 3 | `get_ticks` | 高频成交 | 个股分笔成交 | ✅ | ✅ |
 | 4 | `get_day` | 日 K | 日 K(支持前复权) | ✅ | ✅ |
 | 5 | `get_week` | 周 K | 周 K | ✅ | ⚠️ 不支持 |
@@ -208,25 +210,22 @@ df = get_minute(ts_codes=["000006.SZ", "000001.SZ"], trade_date="2026-09-10", so
 
 ---
 
-### 4.2 `get_minute_index` — 指数分钟 K(5 指数)
+### 4.2 指数原生一分钟、十五分钟与分时兼容接口（2026-10-22）
 
-**用途**:大盘指数分钟 K,**默认拉 5 指数**(上证指数 / 深证成指 / 创业板指 / 科创 50 / 上证 50)。
+新代码使用 `get_index_oneMin` / `get_index_fifteenMin`，分别读取原生1分钟/15分钟
+OHLC与成交额。15分钟使用 TDX 指数专用 `get_index_bars`，不从分钟收盘价拼接。
 
 **签名**:
 ```python
-def get_minute_index(
-    ts_code: Optional[str] = None,
-    ts_codes: Optional[list] = None,
-    trade_date: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    source: str = "database",
-) -> pd.DataFrame:
+get_index_oneMin(ts_code, trade_date=None, start_date=None, end_date=None, source="database_only")
+get_index_fifteenMin(ts_code, trade_date=None, start_date=None, end_date=None, source="database_only")
 ```
 
-**参数**:同 `get_minute`,**`ts_code/ts_codes` 可选(默认 5 指数)**。
+单日与日期范围互斥；默认纯数据库读取，不做网络回退。显式 `source="online"`
+使用同一指数下载器返回数据，不写数据库。返回 `open/high/low/close/amount/raw_volume`
+以及时间、涨跌家数、质量标记和审计字段（在线结果不含写库审计时间）。
 
-**默认 5 指数**(`offline_downloader.INDEX_CODES_HERE`):
+**8个已验证指数**（`coreClient.index_minute.INDEX_CODES`）：
 
 | ts_code | 名称 |
 |---|---|
@@ -235,27 +234,33 @@ def get_minute_index(
 | `399006.SZ` | 创业板指 |
 | `000688.SH` | 科创 50 |
 | `000016.SH` | 上证 50 |
+| `000300.SH` | 沪深300 |
+| `000905.SH` | 中证500 |
+| `000852.SH` | 中证1000 |
 
-**返回列**:同 `get_minute`。
+数据库：`$TRADING_DATABASE_ROOT/offline/db_cn_index_minute.db`。每个完整交易日
+1分钟240根、15分钟16根，最后一根均为15:00。源端历史保留深度有限，下载审计记录
+实际起止日期；不填造源端没有的数据。
+
+**量纲**：`raw_volume` 仅保留源端指数原始字段，不能当作成交股数。`amount` 为元，
+部分指数使用交易所全市场成交额口径，与指数成分股日线成交额可能不同。网页分钟
+副图显示“成交额”，不使用个股成交股数和VWAP公式。
+
+**兼容接口 `get_minute_index`** 保留原有参数，默认8指数，优先规范库，较早历史读取
+旧 `policy_minute.db/tbl_minute_index`。`price=close`，兼容列 `vol` 是万元成交额，
+`volume_unit="turnover_10000_yuan"`。online 路由同样改用指数专用解码器。
 
 **示例**:
 
 ```python
-# db 模式:5 指数全表
-df = get_minute_index()  # 全表 5 指数 × 全交易日
-
-# db 模式:单日 5 指数
-df = get_minute_index(trade_date="2026-09-10")
-# → 5 × 240 = 1200 行
-
-# online 模式:默认 5 指数 × 单日
-df = get_minute_index(trade_date="2026-09-10", source="online")
-# → 1200 行
-
-# online 模式:多日 5 指数(5 × N ≤ 30 即 N ≤ 6)
-df = get_minute_index(start_date="2026-09-08", end_date="2026-09-10", source="online")
-# → 5 × 3 × 240 = 3600 行
+one = get_index_oneMin("000001.SH", trade_date="20261022")
+fifteen = get_index_fifteenMin("000300.SH", start_date="20260722", end_date="20261022")
+legacy = get_minute_index(trade_date="20261022", source="database_only")
+# 完整当日：8 × 240 = 1920 行，price为点位、vol为万元成交额。
 ```
+
+更新入口、每日调度、完整性验收和精度标记见
+`offlineDataManager/docs/代码详细设计/service_intraday_index.md`。
 
 ---
 
@@ -1367,3 +1372,14 @@ db 和 online 返回的列可能有差异(比如 online 缺 `snap_ts`),`_align_c
 | 2026-09-18 | v0.7 | `get_basic / get_index_basic` 透传 `exchange / market / publisher`;`get_kpl_list / get_news` 支持 list 参数;`get_day` online ts_codes 走逗号分隔;`get_adj_factor / stk_limit / moneyflow / kpl_concept_cons` 循环 ts_codes;**online 不支持 ts_code 必传**守卫;`get_week / get_month` online 模式直接返空 |
 | 2026-09-18 | v1.0 | 写本文档(18 个接口) |
 | 2026-09-18 | v1.1 | **新增 12 个扩展接口**:`get_suspend / get_top_list / get_top_inst / get_block_trade / get_ggt_daily / get_hsgt_top10 / get_limit_list / get_margin / get_margin_detail / get_cyq_perf / get_major_news / get_cctv_news`;tushare_client 加 `major_news` wrapper;文档加章节 3.1/3.2/4.18~4.29;测试套件扩到 **199 个断言** |
+
+
+## 指数周线与月线（离线预聚合）
+
+- `get_index_weekly` / `get_index_monthly`：直接读取 `db_cn_index.db` 中的
+  `tbl_cn_index_weekly` / `tbl_cn_index_monthly`，不下载、不临时聚合完整日线。
+- 两者支持 `ts_code`、`trade_date`、`start_date`、`end_date`；`trade_date` 是周期内最后一个实际交易日。
+- 默认 `source="database_only"`，`vol` 为手，`amount` 为千元，和指数日线一致。
+- 每次 `service_index_daily` 更新后自动刷新；首轮历史补齐与维护可用
+  `python -m coreClient.index_period`。支持 RemoteProvider 的同名只读接口。
+- 实时叠加、历史部分周期及重复累计保护详见 [指数周期数据](index_period.md)。

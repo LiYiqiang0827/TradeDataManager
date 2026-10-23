@@ -20,7 +20,7 @@ data_provider.py — 统一数据接入层(2026-09-17 新增)
   分钟 / 分笔:  get_oneMin / get_fifteenMin(全市场完整OHLC) / get_minute(旧分时价) / get_minute_index / get_ticks
   日线:        get_day / get_week / get_month (qfq 默认 True)
   基础:        get_basic / get_adj_factor / get_stk_limit / get_daily_basic / get_moneyflow
-  指数:        get_index_basic / get_index_daily
+  指数:        get_index_basic / get_index_daily / get_index_weekly / get_index_monthly
   日历:        get_tradecal
   KPL:         get_kpl_list / get_kpl_concept_cons / get_kpl_limit_performance
   题材知识库:  get_theme_profile / get_theme_members / get_theme_daily / get_market_theme_review
@@ -893,7 +893,10 @@ def get_minute_index(
     end_date: Optional[str] = None,
     source: str = "database",
 ) -> pd.DataFrame:
-    """大盘指数分钟 K(5 指数固定列表见 offline_downloader.INDEX_CODES_HERE)
+    """大盘指数分时兼容接口，优先原生指数分钟库，历史缺口读旧库。
+
+    新代码优先使用 get_index_oneMin（完整OHLC和成交额）。本兼容接口的
+    price 为分钟收盘点位，vol 为万元成交额，不是个股成交股数。
 
     Args:
         ts_code: 单指数 e.g. '000001.SH'(可省略)
@@ -903,32 +906,82 @@ def get_minute_index(
         end_date: 日期段结束
         source: 'database' / 'online'
 
-    数据库位置:policy_minute.db / tbl_minute_index + tbl_minute_index_ctrl
-    online:TdxClient.get_history_minute(指数代码, date_int)
-        不传 ts_code → 默认 INDEX_CODES_HERE(5 指数)
+    数据库位置:db_cn_index_minute.db；较早历史回退到 policy_minute.db。
+    online:指数专用 get_index_bars 解码；不写库。
+        不传 ts_code → 默认网页的8个指数
         多 ts/多日 → 拆成单只单日循环,≤ 30 次
     """
     from offlineDataManager.scripts.core.offline_db_client import PolicyDBClient
-    from offlineDataManager.scripts.core.offline_downloader import INDEX_CODES_HERE as _INDEX  # noqa
+    from coreClient.index_minute import INDEX_CODES as _NATIVE_INDEX
+
+    def _compat(frame):
+        if frame is None or frame.empty:
+            return pd.DataFrame()
+        frame=frame.copy()
+        frame["price"]=frame["close"]
+        frame["vol"]=frame["amount"]/10000.0
+        frame["volume_unit"]="turnover_10000_yuan"
+        frame["trade_date"]=pd.to_datetime(frame["trade_date"],format="%Y%m%d").dt.strftime("%Y-%m-%d")
+        minutes=pd.to_datetime(frame["datetime"]).dt.hour*60+pd.to_datetime(frame["datetime"]).dt.minute
+        frame["time_idx"]=minutes.where(minutes<=690,minutes-90)-571
+        return frame
 
     def _db():
         c = PolicyDBClient()
-        return c.get_minute_index(
+        legacy=c.get_minute_index(
             ts_codes=ts_codes if ts_codes else ts_code,
             trade_date=trade_date,
             start_date=start_date,
             end_date=end_date,
         )
+        requested=ts_codes if ts_codes else ([ts_code] if ts_code else list(_NATIVE_INDEX))
+        if isinstance(requested,str): requested=[requested]
+        frames=[legacy] if legacy is not None and not legacy.empty else []
+        for code in requested:
+            if code in _NATIVE_INDEX:
+                frame=_compat(get_index_oneMin(code,trade_date,start_date,end_date,source="database_only"))
+                if not frame.empty: frames.append(frame)
+        if not frames: return pd.DataFrame()
+        frame=pd.concat(frames,ignore_index=True)
+        frame["volume_unit"]="turnover_10000_yuan"
+        return frame.drop_duplicates(["ts_code","datetime"],keep="last").sort_values(["ts_code","datetime"]).reset_index(drop=True)
 
     def _online():
         ts_list, dates_list = _validate_online_minute(
             ts_code=ts_code, ts_codes=ts_codes,
             trade_date=trade_date, start_date=start_date, end_date=end_date,
-            default_ts_codes=_INDEX,  # 不传 ts 时默认 5 指数
+            default_ts_codes=_NATIVE_INDEX,
         )
-        return _online_loop_tdx(ts_list, dates_list, kind="minute_index")
+        frames=[_compat(get_index_oneMin(code,trade_date=date,source="online")) for code in ts_list for date in dates_list]
+        return pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
 
     return _route(source, _db, _online)
+
+
+def _get_native_index_bars(period, ts_code, trade_date, start_date, end_date, source):
+    from coreClient.index_minute import read_index_bars, IndexMinuteDownloader
+    def _db():
+        return read_index_bars(ts_code, period, trade_date, start_date, end_date)
+    def _online():
+        if trade_date and (start_date or end_date):
+            raise ValueError("trade_date and date range are mutually exclusive")
+        downloader = IndexMinuteDownloader()
+        try:
+            rows, _ = downloader.download(ts_code, period, trade_date or start_date, trade_date or end_date)
+            return pd.DataFrame(rows)
+        finally:
+            downloader.close()
+    return _route(source, _db, _online)
+
+
+def get_index_oneMin(ts_code, trade_date=None, start_date=None, end_date=None, source="database_only"):
+    """Native index OHLC/turnover; raw_volume is not a share-volume measure."""
+    return _get_native_index_bars(1, ts_code, trade_date, start_date, end_date, source)
+
+
+def get_index_fifteenMin(ts_code, trade_date=None, start_date=None, end_date=None, source="database_only"):
+    """Read native 15-minute index bars without resampling one-minute prices."""
+    return _get_native_index_bars(15, ts_code, trade_date, start_date, end_date, source)
 
 
 def get_ticks(
@@ -1481,6 +1534,25 @@ def get_index_daily(
         return _align_cols(df, target)
 
     return _route(source, _db, _online)
+
+
+def get_index_weekly(ts_code=None, trade_date=None, start_date=None, end_date=None, source="database_only") -> pd.DataFrame:
+    """Read persisted index weekly bars. Native daily units: vol=lots, amount=thousand yuan.
+
+    trade_date is the last actual trading date in a stored period. No online fallback.
+    """
+    if source not in ("database_only", "database"):
+        raise ValueError("Index weekly bars are offline preaggregated; use database_only")
+    from coreClient.index_period import IndexPeriodStore
+    return IndexPeriodStore().read("weekly", ts_code=ts_code, trade_date=trade_date, start_date=start_date, end_date=end_date)
+
+
+def get_index_monthly(ts_code=None, trade_date=None, start_date=None, end_date=None, source="database_only") -> pd.DataFrame:
+    """Read persisted index monthly bars; same field and date semantics as get_index_weekly."""
+    if source not in ("database_only", "database"):
+        raise ValueError("Index monthly bars are offline preaggregated; use database_only")
+    from coreClient.index_period import IndexPeriodStore
+    return IndexPeriodStore().read("monthly", ts_code=ts_code, trade_date=trade_date, start_date=start_date, end_date=end_date)
 
 
 # ============================================================================

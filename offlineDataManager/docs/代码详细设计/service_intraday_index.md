@@ -1,128 +1,66 @@
-# 代码详细设计/service_intraday_index.md
+# 指数原生一分钟与十五分钟数据
 
-`scripts/service/service_intraday_index.py` — 大盘指数分钟 K 更新 service(2026-09-17 新增)。
+2026-10-22 修复：指数 K 线必须使用 `pytdx.api.get_index_bars`。指数协议比个股
+多出涨跌家数，使用 `get_security_bars` 解析会使后续记录错位，出现错误日期与价格。
 
-## 职责
+## 代码与存储
 
-1. 解析 `--start-date` / `--end-date` / `--trade-date`(只接日期,**不接 watchlist**)
-2. 调 `build_index_pairs(args)` 算出 5 指数 × N 交易日的 (ts_code, trade_date) 对
-3. 调 `CNDataDown.update_minute_index(...)` 循环下载 + 落库
-4. 写日志到 `logs/service_intraday_index.log`
+- 下载、完整性校验和持久化：`coreClient/index_minute.py`，`IndexMinuteDownloader`。
+- 更新入口：`offlineDataManager/scripts/service/service_intraday_index.py`。
+- 规范数据库：`$TRADING_DATABASE_ROOT/offline/db_cn_index_minute.db`，默认为
+  `~/TradingDatabase/offline/db_cn_index_minute.db`。
+- 表：`tbl_cn_index_minute`（主键 ts_code、period、datetime）与
+  `tbl_cn_index_minute_ctrl`（仅记录通过校验的完整交易日）。
+- 下载审计：数据库同目录下 `index_minute_downloads/YYYYMMDD_HHMMSS.json`。
+- 旧 `policy_minute.db/tbl_minute_index` 保持只读，避免混入不同的量纲。
 
-## 入口
+支持网页的八个指数：000001.SH、399001.SZ、399006.SZ、000688.SH、000300.SH、
+000016.SH、000905.SH、000852.SH。其他指数需要先验证源端支持后扩展常量。
 
-```bash
-# 1. 单日 5 指数
-python3 service_intraday_index.py --trade-date 2026-08-28
+## 运行
 
-# 2. 日期段 5 指数 × N 个交易日
-python3 service_intraday_index.py --start-date 2026-08-26 --end-date 2026-08-28
+在 TradingDataManager 根目录、配置好项目环境变量后：
 
-# 3. 强制重拉
-python3 service_intraday_index.py --start-date 2026-08-26 --end-date 2026-08-28 --force
+```sh
+.venv/bin/python -m offlineDataManager.scripts.service.service_intraday_index --all-history
+.venv/bin/python -m offlineDataManager.scripts.service.service_intraday_index
+.venv/bin/python -m offlineDataManager.scripts.service.service_intraday_index --trade-date 20261022
 ```
 
-**显式拒绝** watchlist 和 ts-codes(指数是固定 5 个,跟具体股票无关):
+首次下载全部源端可用历史；增量更新从各指数、各周期的最后成功日期向前重叠七个自然日。
+默认截至最近已完成的交易日（16:30 后允许当天）。完整历史请求分页直到源端结束；
+源端没有固定保留深度保证，审计报告记录实际起止日期和终止原因。当前实测一分钟
+大多始于 2026-06-08，十五分钟大多始于 2024-10-15，个别指数略早。
 
-```bash
-python3 service_intraday_index.py --watchlist xxx.csv
-# → ERROR: 指数 service 不接受 --watchlist / --ts-codes,只需日期参数
-```
+每日离线 scheduler 在 16:35 运行，18:00/20:00/22:00 完整更新开始时再补增量。
+不依赖个股复权因子，也不因个股下载失败而跳过指数更新。
 
-## 关键点
+## 数据契约与验收
 
-- **不接 watchlist**(2026-09-17 设计决定):指数列表固定 5 个,跟个股 watchlist 无关
-- **不接 --ts-codes**:同上,不能让 caller 自选指数
-- **指数列表**:`offline_downloader.INDEX_CODES_HERE` = `["000001.SH", "399001.SZ", "399006.SZ", "000688.SH", "000016.SH"]`
-- **日期过交易日历过滤**:`get_tradecal(market="SSE", is_open=True)` 去掉周末/节假日
-- **数据源:tdx**(指数代码也直接支持,实测 5 指数都能拉到 240 行)
-- **落库:policy_minute.db / tbl_minute_index + tbl_minute_index_ctrl**(跟个股 minute **同 db,不同表**)
+- 两种周期均为原生 OHLC，十五分钟不会从每分钟收盘价拼接。
+- 一分钟每天 240 根（09:31—11:30、13:01—15:00）；十五分钟每天 16 根，
+  第一根 09:45、最后一根 15:00。过滤午休、15:00 以后及请求结束日期之后的数据。
+- 按完整交易日写入。少根、日期错误、非有限/非正价格、负成交额或严重 OHLC
+  矛盾会拒绝该批次，控制表不会宣称下载成功。
+- 收盘记录偶见 0.01 点以内的 high/low 与最终收盘值精度差异：保留原值，
+  `quality_flags` 标记 `closing_ohlc_boundary_rounding`；其他异常仍拒绝。
+- 逐日对照本地交易日历与指数日线。收盘差异超过 0.1% 时拒绝写入。
+- `raw_volume` 是指数源端原始字段，不能作为个股成交股数。`amount` 是源端发布
+  的成交额（元）。部分指数源端成交额是交易所全市场口径，例如深成指与其成分股
+  日线成交额不完全相同；保留口径，不强行对齐。
+- 网页分钟副图使用成交额，明确显示为“成交额”；不计算不适用于该口径的个股 VWAP。
 
-## 依赖链位置
-
-```
-policyStudy/policy/题材涨停研究/scripts/data_gen.py  v3.7
-  │  watchlist 的 min/max trade_date 作为 --start-date / --end-date
-  └─ subprocess.run([sys.executable, service_intraday_index.py, "--start-date", ..., "--end-date", ...])
-       └─ service_intraday_index.main()
-            ├─ build_index_pairs(args)         # 5 指数 × 区间内交易日
-            ├─ ensure_schema(db_kind="minute_index")
-            └─ CNDataDown().update_minute_index(ts, td, ...)
-```
-
-**没挂 scheduler**:用户手动跑 `data_gen.py` 或单独跑 service
-
-## 数据流
-
-```
-service_intraday_index.main()
-  │
-  ├─ argparse 4 个参数(--start-date/--end-date/--trade-date/--rate/--force)
-  │  显式检查 --watchlist/--ts-codes → ERROR 拒绝
-  │
-  ├─ build_index_pairs(args)
-  │   ├─ --trade-date      → 5 × 1 对
-  │   ├─ --start-date/--end-date → 5 × N 对(N = 区间内交易日数)
-  │   └─ 都没有             → [] 返回 1
-  │
-  ├─ ensure_schema(db_kind="minute_index")  # 建 tbl_minute_index + ctrl
-  │
-  └─ run_market_loop(
-       down, pairs,
-       update_method="update_minute_index",
-       client=TdxClient(),
-       ...
-     )
-     │
-     └─ for (ts, td) in pairs:   # ts 是指数代码
-          down.update_minute_index(ts, td, ...)
-          ├─ has_data("minute_index", ts, td)
-          ├─ client.get_history_minute(ts, date_int)  # 指数代码直接支持
-          ├─ upsert_rows("minute_index", df) + mark
-          └─ time.sleep(rate)
-```
-
-## 与 service_intraday 的差异
-
-| 维度 | service_intraday | service_intraday_index |
-|---|---|---|
-| ts_code 范围 | 任意个股(从 watchlist 来) | 固定 5 指数(`INDEX_CODES_HERE`) |
-| 接 watchlist | ✅ | ❌(拒绝) |
-| 接 --ts-codes | ✅ | ❌(拒绝) |
-| 接日期 | --trade-date / --start-end | --trade-date / --start-end(语义同) |
-| update_method | `update_minute` | `update_minute_index` |
-| 落库表 | tbl_minute | tbl_minute_index(同 db) |
-| 用途 | 涨停个股分钟研究 | 涨停 vs 大盘指数对比 |
-
-## 注意事项
-
-- **指数代码也走 pytdx**,跟个股 minute 用同一个接口 `get_history_minute`,只是 ts_code 是指数
-- **`market_of` 自动识别**:`market_of("000001.SH")` → 1,`market_of("399001.SZ")` → 0,跟个股规则一样
-- **限速 0.15s/对**(5 指数 × 160 交易日 = 800 对,约 3-4 分钟跑完)
-- **跟 service_intraday 完全独立**:不依赖 watchlist,可以直接手动跑(比如补一天的指数数据)
-
-## 性能数据(2026-09-17 实测)
-
-| 场景 | 数据量 | 耗时 | 备注 |
-|---|---|---|---|
-| 1 日 × 5 指数 = 5 对 | 1,200 行 | 0.4s | 含 TdxClient 初始化 |
-| 160 交易日 × 5 指数 = 800 对(全量) | 192,000 行 | 216s ≈ 3.6 分钟 | ctrl 全 skip 时 0.6s(只校验 ctrl) |
-| 1 对新插 240 行 | 240 行 | ~0.1s | 单次拉取 |
-
-## 5 指数列表(2026-09-17)
+## 读取接口
 
 ```python
-INDEX_CODES_HERE = [
-    "000001.SH",  # 上证指数
-    "399001.SZ",  # 深证成指
-    "399006.SZ",  # 创业板指
-    "000688.SH",  # 科创50
-    "000016.SH",  # 上证50
-]
+from coreClient.data_provider import get_index_oneMin, get_index_fifteenMin
+one = get_index_oneMin("000001.SH", trade_date="20261022", source="database_only")
+fifteen = get_index_fifteenMin("000001.SH", start_date="20260722", end_date="20261022", source="database_only")
 ```
 
-区别于 `tdx_config.INDEX_CODES`(4 个,不含 000016.SH 上证50);这里扩展到 5 个,因为 policyStudy 研究需要全 5 指数。
+默认纯数据库读取，返回 OHLC、amount、raw_volume、quality_flags 和来源审计字段。
+`source="online"` 使用同一指数专用下载器，仅返回数据、不写数据库。
 
-## 修改记录
-
-- 2026-09-17 v1.0:创建(从 `service_market_index.py` 重命名)
+旧 `get_minute_index` 兼容接口优先规范库、较早历史回退旧库，返回 `price=close`，
+兼容 `vol` 明确为“万元成交额”（`volume_unit=turnover_10000_yuan`），不是股数。
+其 online 路由也使用指数专用解码器。

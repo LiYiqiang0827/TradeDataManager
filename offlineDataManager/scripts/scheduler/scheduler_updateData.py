@@ -33,6 +33,7 @@ from service.common import latest_completed_trade_date
 STR_TIME_FULL_DB_1 = "18:00"  # 收盘后(15:00 A股收盘),基础行情已稳定
 STR_TIME_FULL_DB_2 = "20:00"
 STR_TIME_FULL_DB_3 = "22:00"
+STR_TIME_INDEX_INTRADAY = "16:35"
 
 STR_TIME_MORNING = "09:05"  # 早上补:涨跌停价(昨天收盘) + kpl 涨停榜(昨天收盘)
 
@@ -152,6 +153,14 @@ def spawn_service(service_name: str, extra_args: list = None, sync: bool = False
 # ============================================================
 
 
+def task_index_intraday_update():
+    """Refresh native index 1/15-minute bars independently of stock adjustment jobs."""
+    try:
+        spawn_service("service_intraday_index", [], sync=True)
+    except RuntimeError as exc:
+        logger.error(f"[指数分钟更新] 失败，保留已验证历史数据: {exc}")
+
+
 def task_full_update():
     """完整数据库更新(每天 3 次)— 同步启动各 service
 
@@ -180,6 +189,7 @@ def task_full_update():
         return
 
     target = get_target_date()
+    task_index_intraday_update()
     # 周末、节假日及盘前可能只需确认上一个交易日已完成。
     # 避免在没有新交易日时重复执行周月全量聚合与大量历史 API 调用。
     if target < datetime.now().strftime("%Y%m%d"):
@@ -373,12 +383,14 @@ def run_daemon(*, skip_startup_update: bool = False):
     logger.info(f"  早上更新: {STR_TIME_MORNING} (stk_limit + kpl_list + cctv_news)")
     logger.info(f"  完整更新: {STR_TIME_FULL_DB_1} / {STR_TIME_FULL_DB_2} / {STR_TIME_FULL_DB_3}")
     logger.info(f"  kpl_limit_performance: {STR_TIME_KPL_LP_1} / {STR_TIME_KPL_LP_2}")
+    logger.info(f"  指数原生1/15分钟: {STR_TIME_INDEX_INTRADAY}，完整更新时再增量补齐")
     logger.info(f"  News: 每 {NEWS_INTERVAL_MIN} 分钟 (08:00 - 05:00)")
     logger.info(f"  News LLM: 每天 {STR_TIME_NEWS_LLM} 分析前一自然日 Major News")
     logger.info("=" * 60)
 
     # 早上快速更新:09:05 只补涨跌停价 + 涨停榜
     schedule.every().day.at(STR_TIME_MORNING).do(task_morning_update)
+    schedule.every().day.at(STR_TIME_INDEX_INTRADAY).do(task_index_intraday_update)
 
     # 完整数据库更新:每天 3 次(18:00 / 20:00 / 22:00,均在收盘后)
     for t in [STR_TIME_FULL_DB_1, STR_TIME_FULL_DB_2, STR_TIME_FULL_DB_3]:

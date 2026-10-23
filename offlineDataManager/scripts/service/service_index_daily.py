@@ -50,6 +50,11 @@ def main():
     sd = args.start_date if args.start_date else "19930101"
     ed = args.end_date if args.end_date else None
     n = down.update_index_daily(start_date=sd, end_date=ed)
+    # Both scheduler_updateData and scheduler_once enter here. Even a no-op daily
+    # download must refresh derived bars (for repairs or an initial backfill).
+    from coreClient.index_period import IndexPeriodStore
+    periods = IndexPeriodStore().refresh()
+    logger.info(f"[{SERVICE_NAME}] 指数周/月线预聚合: {periods}")
     elapsed = time.time() - t0
     logger.info(f"[{SERVICE_NAME}] +{n:,} 行, 耗时 {elapsed:.1f}s")
 

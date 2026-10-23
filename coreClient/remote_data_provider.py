@@ -26,6 +26,8 @@ SOURCE_PROVIDERS = {
     "get_week": {"ts_code", "ts_codes", "start_date", "end_date", "qfq"},
     "get_month": {"ts_code", "ts_codes", "start_date", "end_date", "qfq"},
     "get_index_daily": {"ts_code", "trade_date", "start_date", "end_date"},
+    "get_index_weekly": {"ts_code", "trade_date", "start_date", "end_date"},
+    "get_index_monthly": {"ts_code", "trade_date", "start_date", "end_date"},
     "get_ticks": {"ts_code", "ts_codes", "trade_date", "start_date", "end_date"},
 }
 DATABASE_ONLY_PROVIDERS = {
