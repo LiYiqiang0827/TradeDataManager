@@ -1,6 +1,12 @@
 # 题材知识库模型任务
 
+## Neo4j题材归因数据库接口
+
+Neo4j 题材日快照和个股涨停原因读写类正式位于 `coreClient/neo4j_client.py`；兼容导出、SQLite快照导入脚本和接口说明位于 [`theme_graph/neo4j/`](neo4j/)。Neo4j 按通过验收的 SQLite 快照同步，实际覆盖日期需查询确认。数据文件和每日文档统一存放在 `~/TradingDataBase/theme_graph/`。每日涨停分析流程见本目录 [`SKILL.md`](SKILL.md)。原有开盘啦 DuckDB 题材时序库仍由 `offlineDataManager/scripts/core/theme_graph_store.py` 管理。
+
 这里存放可以交给本地 Qwen vLLM 或 Hermes/MiniMax 批量执行的标准化提示词、运行器和金标评估。结构化市场事实由 `offlineDataManager/scripts/core/theme_graph_store.py` 生成，模型只写审计表 `llm_analysis`。
+
+涨停原因提示词保留两个用途：`prompts/limit_attribution_v1.md` 是面向单股与候选题材的结构化归因复核；`prompts/limit_attribution_v3.md` 是从 TradingAlertSystem 2026-10-16 通用模板复制的每日题材与个股涨停原因分析提示词，任务输入可替换。两者用途不同，v3 不覆盖 v1。
 
 五类任务：
 
@@ -55,3 +61,7 @@ PYTHONPATH=offlineDataManager/scripts:. /Users/nickzhang/TradingAgent/.venv/bin/
 ```
 
 模型分工保持固定：MiniMax 使用 Web 工具找原始事件与完成归因，Qwen 执行证据筛选和时序/引用审计，MiniMax生成周期摘要。批次支持已有证据、已有原始模型输出和完整外部分析结果的分层复用，避免重复消耗模型；`--force` 才会强制重新研究。证据发布时间晚于错误匹配日时，程序只允许把它重映射到其后的首个关键日；若已没有可解释的后续关键日，则剔除该条，不能倒置因果。
+
+## 新机完整链路
+
+依赖、无凭据配置、数据库结构、生成与入库、合成示例和 dashboard 联调请从 [PORTABLE_SETUP.md](PORTABLE_SETUP.md) 开始。
