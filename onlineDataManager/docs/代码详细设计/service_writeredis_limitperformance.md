@@ -2,7 +2,7 @@
 
 > **涨停表现详情写入 service**
 > **数据源**:`KPLClient.fetch_realtime_limit_performance()(apphwhq 实时盯盘 host)`
-> **周期**:`30s/轮`
+> **周期**:`6s/轮目标`
 > **批量**:`全市场`
 > **v6 特殊性**:`v5 新建 + v6 改 MyATM 风格`
 
@@ -30,10 +30,10 @@
 - **archive HSET `online:limitperformance:archive:{unix_ts}`**(300s/5min):全市场涨停表现聚合
 
 #### §1.5..3 TTL / 周期 推导
-- **archive TTL = 300s(5min)**:涨停表现 30s/轮,数据量大,5min archive 够下游看趋势
+- **archive TTL = 300s(5min)**:涨停表现 6s/轮目标,数据量大,5min archive 够下游看趋势
 - **timeline TTL = 43200s(12h)**:标准
 - **STREAM TTL = 21600s(6h)**:标准
-- **writeredis 周期 30s**:与 zt 一致(涨停表现跟涨停事件强相关)
+- **writeredis 周期 6s**:5 个板数并行，按开始到开始扣除抓取耗时；失败退避，部分失败不提交
 - **STREAM MAXLEN=5000**:与其它低频 kind 一致
 
 #### §1.5..4 v5 / v6 MyATM 改造(2026-09-14)
@@ -47,7 +47,7 @@
 
 scheduler 在 09:25 auction 阶段末尾 spawn:
 - 一轮:拉数据 + 写 Redis
-- 之后 sleep `interval` 秒等下一轮
+- 之后只等待 `max(0, interval - 本轮耗时)`；失败按 12/24/48 秒退避
 - 15:35 切到 closed 时 SIGTERM 杀掉
 
 ## §3 调用链
@@ -59,7 +59,7 @@ service_writeredis_limitperformance
   └─ <数据源>.fetch_xxx(codes=...)
   └─ r.put_limitperformance(lp_list, *, data_timestamp=None)   # **批量 pipeline + kwarg-only**(data_timestamp 是 keyword-only,必传或 None)
   └─ (MyATM 风格无 commit,EXPIRE 在 put_limitperformance 内部处理)
-  └─ sleep 30s
+  └─ wait until next 6s start
 ```
 
 ## §4 Redis 数据结构

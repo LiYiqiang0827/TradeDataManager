@@ -244,8 +244,8 @@ WRITER_DAEMONS_MORNING_AFTERNOON: list[dict] = [
     {"name": "service_writeredis_break", "args": []},
     {"name": "service_writeredis_anomaly", "args": []},
     {"name": "service_writeredis_hot", "args": []},
-    # 涨停表现详情(盘中 30s/轮,09:29 写入阶段开始)
-    {"name": "service_writeredis_limitperformance", "args": []},
+    # 涨停表现详情：6s start-to-start, five board requests in parallel.
+    {"name": "service_writeredis_limitperformance", "args": ["--interval", "6"]},
     # v6.10 (2026-09-16):8 只指数,10s/轮(v6.15 改)
     {"name": "service_writeredis_snapshot_index", "args": []},
 ]

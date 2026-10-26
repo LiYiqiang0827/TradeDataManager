@@ -19,6 +19,8 @@ import sys
 import time
 import json
 import requests
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pandas as pd
@@ -51,17 +53,19 @@ class RateLimiter:
     def __init__(self, max_per_min: int = 30):
         self.max_per_min = max_per_min
         self.calls = []
+        self.lock = threading.Lock()
 
     def acquire(self):
         """获取一次调用权限(超限自动 sleep)"""
-        now = time.time()
-        self.calls = [t for t in self.calls if now - t < 60]
-        if len(self.calls) >= self.max_per_min:
-            sleep_for = 60 - (now - self.calls[0]) + 0.1
-            logger.warning(f"[KPL] 触发限流,sleep {sleep_for:.1f}s")
+        while True:
+            with self.lock:
+                now = time.monotonic()
+                self.calls = [t for t in self.calls if now - t < 60]
+                if len(self.calls) < self.max_per_min:
+                    self.calls.append(now)
+                    return
+                sleep_for = max(.01, 60 - (now - self.calls[0]) + .1)
             time.sleep(sleep_for)
-            self.calls = []
-        self.calls.append(time.time())
 
 
 # ==================== 重试装饰器 ====================
@@ -560,6 +564,7 @@ class KPLClient:
         self,
         sort_by: str = "board_then_time",
         add_suffix: bool = True,
+        workers: int = 1,
     ) -> pd.DataFrame:
         """涨停表现详情 — 实时盯盘 host(apphwhq)版本
 
@@ -569,7 +574,7 @@ class KPLClient:
 
         endpoint: HomeDingPan/DailyLimitPerformance  (apphwhq)
 
-        用途:onlineDataManager 的 service_writeredis_limitperformance 每 30s 拉一次当前涨停详情,
+        用途:onlineDataManager 的 service_writeredis_limitperformance 目标每 6s 拉一次当前涨停详情,
         打 data_timestamp(拉取瞬间 unix int),XADD 进 STREAM → 落盘成盘中涨停快照轨迹。
         同只股多次拉的快照都会落盘(以 ts_code + limit_performance_timestamp 为 UNIQUE key),
         等于把"涨停列表的演化"完整保留。
@@ -592,25 +597,26 @@ class KPLClient:
             盘中可能为空 DataFrame(集合竞价前/非交易日/接口异常时)
         """
         today = datetime.now().strftime("%Y-%m-%d")
-        all_dfs = []
-        for bt in [1, 2, 3, 4, 5]:
-            try:
-                result = self.call(
-                    "HomeDingPan", "DailyLimitPerformance",
-                    PidType=bt, Type=1, st=2000, Order=0,
-                    # host 默认就是 KPL_HOST_APPHWHQ,显式传一下避免混淆
-                )
-                df = self._parse_limit_performance(
-                    result.get("info", []) if isinstance(result, dict) else result,
-                    today, bt,
-                )
-                if len(df) > 0:
-                    all_dfs.append(df)
-            except Exception as e:
-                logger.warning(f"[KPL] realtime board_type={bt} 拉取失败: {e}")
-
+        all_dfs = []; errors = []
+        def fetch_board(bt):
+            result = self.call('HomeDingPan', 'DailyLimitPerformance', PidType=bt, Type=1, st=2000, Order=0)
+            if not isinstance(result, list) and not (isinstance(result, dict) and isinstance(result.get('info'), list)):
+                raise ValueError('KPL response missing info list')
+            return self._parse_limit_performance(result.get('info', []) if isinstance(result, dict) else result, today, bt)
+        def attempt(bt):
+            try: return bt, fetch_board(bt), None
+            except Exception as exc: return bt, None, str(exc)
+        if int(workers) > 1:
+            with ThreadPoolExecutor(max_workers=min(5, int(workers)), thread_name_prefix='kpl-board') as executor:
+                batches = list(executor.map(attempt, [1,2,3,4,5]))
+        else: batches = [attempt(bt) for bt in [1,2,3,4,5]]
+        for bt, frame, error in batches:
+            if error:
+                errors.append(bt); logger.warning(f'[KPL] realtime board_type={bt} failed: {error}')
+            elif len(frame) > 0: all_dfs.append(frame)
         if not all_dfs:
-            return pd.DataFrame()
+            empty = pd.DataFrame(); empty.attrs['board_errors'] = errors
+            return empty
 
         df = pd.concat(all_dfs, ignore_index=True)
 
@@ -634,6 +640,7 @@ class KPLClient:
                 ["board_count"], ascending=[False]
             ).reset_index(drop=True)
 
+        df.attrs['board_errors'] = errors
         return df
 
     # ====================================================================

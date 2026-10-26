@@ -98,6 +98,7 @@ def run_zt_loop(redis_client: OnlineRedis, *, interval_sec: float = 60.0,    # 2
             redis_client.set_meta("zt_last_round", round_idx)
             redis_client.set_meta("zt_last_count", len(pool or []))
             redis_client.set_meta("zt_last_ts", now_dt.isoformat(timespec="milliseconds"))
+            redis_client.emit_update("zt", len(pool or []), source_at=now_unix)
             log.info(f"round {round_idx}: zt={len(pool or [])}")
         except HithinkCLIError as e:
             log.warning(f"CLI 错误: {e}")
@@ -131,6 +132,9 @@ def main() -> int:
             if pool:
                 pool = [normalize_zt_item(it, now_unix) for it in pool]
                 r.put_zt_pool(pool, data_timestamp=now_unix)
+            r.set_meta("zt_last_count", len(pool or []))
+            r.set_meta("zt_last_ts", datetime.now().isoformat(timespec="milliseconds"))
+            r.emit_update("zt", len(pool or []), source_at=now_unix)
             log.info(f"once: zt={len(pool or [])}")
         except Exception as e:
             log.error(f"once 失败: {e}")

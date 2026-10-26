@@ -6,7 +6,7 @@ service/service_writeredis_limitperformance.py
 
 涨停表现详情写入 service:
 - KPLClient.fetch_realtime_limit_performance()(apphwhq 实时盯盘 host,盘中可用)
-- 30 秒/轮
+- 6 秒/轮
 - 写 Redis MyATM 风格:
     * online:limitperformance:archive:{unix_ts} HSET(每个 snapshot 300s 各自过期)
     * online:limitperformance:timeline ZSet(12h 兜底 + 滑窗 10 分钟)
@@ -30,7 +30,7 @@ service/service_writeredis_limitperformance.py
   savedata 挂 4 个阶段:auction_savedata / morning_savedata / afternoon_savedata / writer_stopped
 
 启动:
-    python3 -m service.service_writeredis_limitperformance --interval 30
+    python3 -m service.service_writeredis_limitperformance --interval 6
     python3 -m service.service_writeredis_limitperformance --once
 """
 
@@ -98,16 +98,19 @@ def normalize_lp_item(it: dict) -> dict:
 def run_limitperformance_loop(
     redis_client: OnlineRedis,
     *,
-    interval_sec: float = 30.0,
+    interval_sec: float = 6.0,
     log: logging.Logger = None,
     stop_check=None,
 ) -> None:
-    """主循环:30 秒/轮拉涨停表现详情,STREAM 单写"""
+    """主循环:6 秒/轮拉涨停表现详情,STREAM 单写"""
     log = log or logging.getLogger("limitperformance_loop")
     log.info(f"service_writeredis_limitperformance 启动, interval={interval_sec}s")
 
     round_idx = 0
     kpl = KPLClient()
+    # 5 endpoints / 6s needs 50 calls/min; budget is local to this writer process.
+    kpl.rate_limiter.max_per_min = max(kpl.rate_limiter.max_per_min, 60)
+    failures = 0
 
     while True:
         if stop_check and stop_check():
@@ -119,11 +122,14 @@ def run_limitperformance_loop(
             time.sleep(interval_sec)
             continue
 
+        started = time.monotonic()
         try:
             now_dt = datetime.now()
             now_unix = now_dt.timestamp()
 
-            df = kpl.fetch_realtime_limit_performance()
+            df = kpl.fetch_realtime_limit_performance(workers=5)
+            if df.attrs.get("board_errors"):
+                raise RuntimeError("Incomplete KPL board batch; retained previous snapshot")
             if df is not None and len(df) > 0:
                 lp_list = [normalize_lp_item(it) for it in df.to_dict(orient="records")]
                 written = redis_client.put_limitperformance(
@@ -132,6 +138,7 @@ def run_limitperformance_loop(
             else:
                 written = 0
 
+            failures = 0
             round_idx += 1
             redis_client.set_meta("limitperformance_last_round", round_idx)
             redis_client.set_meta("limitperformance_last_count", written)
@@ -139,19 +146,22 @@ def run_limitperformance_loop(
                 "limitperformance_last_ts",
                 now_dt.isoformat(timespec="milliseconds"),
             )
+            redis_client.emit_update("limitperformance", written, source_at=now_unix)
             log.info(
                 f"round {round_idx}: limitperformance={written} ts={now_dt.isoformat(timespec='seconds')}",
             )
         except Exception as e:
+            failures += 1
             log.error(f"limitperformance 异常: {e}", exc_info=True)
             redis_client.set_meta("limitperformance_last_error", str(e))
 
-        time.sleep(interval_sec)
+        delay = min(60.0, interval_sec * (2 ** min(failures, 3))) if failures else max(0.0, interval_sec - (time.monotonic() - started))
+        time.sleep(delay)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Service: writeredis_limitperformance (涨停表现详情)")
-    parser.add_argument("--interval", type=float, default=30.0)
+    parser.add_argument("--interval", type=float, default=6.0)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
 
@@ -168,12 +178,18 @@ def main() -> int:
         try:
             now_unix = datetime.now().timestamp()
             kpl = KPLClient()
-            df = kpl.fetch_realtime_limit_performance()
+            kpl.rate_limiter.max_per_min = max(kpl.rate_limiter.max_per_min, 60)
+            df = kpl.fetch_realtime_limit_performance(workers=5)
+            if df.attrs.get("board_errors"):
+                raise RuntimeError("Incomplete KPL board batch")
             if df is not None and len(df) > 0:
                 lp_list = [normalize_lp_item(it) for it in df.to_dict(orient="records")]
                 written = r.put_limitperformance(lp_list, data_timestamp=now_unix)
             else:
                 written = 0
+            r.set_meta("limitperformance_last_count", written)
+            r.set_meta("limitperformance_last_ts", datetime.now().isoformat(timespec="milliseconds"))
+            r.emit_update("limitperformance", written, source_at=now_unix)
             log.info(f"once: limitperformance={written}")
         except Exception as e:
             log.error(f"once 失败: {e}", exc_info=True)

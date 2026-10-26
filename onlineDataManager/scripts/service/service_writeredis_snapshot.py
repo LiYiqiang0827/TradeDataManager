@@ -106,6 +106,7 @@ def run_realtime_loop(
             log.info(f"round {round_idx}: watchlist={len(watchlist)} quotes={len(quotes)} written={written} archive={archive_key}")
             redis_client.set_meta("snapshot_last_round", round_idx)
             redis_client.set_meta("snapshot_last_written", written)
+            redis_client.emit_update("snapshot", written, source_at=now_dt.timestamp())
 
         except HithinkCLIError as e:
             log.warning(f"CLI 错误: {e}")
@@ -151,6 +152,7 @@ def main() -> int:
                 written = r.put_snapshots_batch(items)
                 # v6.3 一轮末尾聚合写全市场快照索引(timeline + archive)
                 archive_key = r.commit_snapshots_batch(items, now_dt=now_dt)
+                r.emit_update("snapshot", written, source_at=now_dt.timestamp())
                 log.info(f"once: watchlist={len(watchlist)} quotes={len(quotes)} written={written} archive={archive_key}")
             else:
                 log.warning("watchlist 为空,跳过")

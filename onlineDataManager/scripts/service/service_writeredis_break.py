@@ -95,6 +95,7 @@ def run_break_loop(redis_client: OnlineRedis, *, interval_sec: float = 60.0,    
             redis_client.set_meta("break_last_round", round_idx)
             redis_client.set_meta("break_last_count", len(pool or []))
             redis_client.set_meta("break_last_ts", now_dt.isoformat(timespec="milliseconds"))
+            redis_client.emit_update("break", len(pool or []), source_at=now_unix)
             log.info(f"round {round_idx}: break={len(pool or [])}")
         except HithinkCLIError as e:
             log.warning(f"CLI 错误: {e}")
@@ -128,6 +129,9 @@ def main() -> int:
             if pool:
                 pool = [normalize_break_item(it, now_unix) for it in pool]
                 r.put_break_pool(pool, data_timestamp=now_unix)
+            r.set_meta("break_last_count", len(pool or []))
+            r.set_meta("break_last_ts", datetime.now().isoformat(timespec="milliseconds"))
+            r.emit_update("break", len(pool or []), source_at=now_unix)
             log.info(f"once: break={len(pool or [])}")
         except Exception as e:
             log.error(f"once 失败: {e}")

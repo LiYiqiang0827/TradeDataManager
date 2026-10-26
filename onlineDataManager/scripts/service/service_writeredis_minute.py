@@ -282,6 +282,8 @@ def process_minute_round(
     if written:
         # A successful timestamp changes only when at least one payload was stored.
         redis_client.set_meta("minute_last_success_at", attempted_at)
+    if written:
+        redis_client.emit_update("minute", written, codes=watchlist, source_at=now.timestamp())
     log.info(
         "minute round %s: status=%s watchlist=%s written=%s empty=%s errors=%s zero_streak=%s",
         round_idx, status, len(watchlist), written, empty_count, len(failures), streak,

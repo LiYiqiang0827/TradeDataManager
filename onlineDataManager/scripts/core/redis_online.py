@@ -170,6 +170,30 @@ class OnlineRedis(RedisBase):
     # ============================================================
     # 业务游标(各 kind STREAM 的最后消费 id — savedata 落盘用)
     # ============================================================
+    def emit_update(self, kind, count, *, codes=None, source_at=None):
+        """Publish only after a complete source batch and its metadata are committed.
+
+        A separate bounded stream leaves persistence consumer cursors untouched.
+        Notification failure never turns a successful data write into a retry.
+        """
+        import json, logging
+        try:
+            archive = None
+            if kind != 'minute' and count:
+                latest = self.r.zrevrange(_k(kind, 'timeline'), 0, 0)
+                if latest:
+                    archive = latest[0].decode() if isinstance(latest[0], bytes) else latest[0]
+            payload = {'kind': kind, 'date': datetime.now().strftime('%Y%m%d'),
+                       'count': int(count), 'archive': archive, 'codes': list(codes or []),
+                       'sourceAt': source_at, 'emittedAt': time.time()}
+            pipe = self.r.pipeline()
+            pipe.xadd(_k('events'), {'payload': json.dumps(payload, separators=(',', ':'))}, maxlen=10000, approximate=True)
+            pipe.expire(_k('events'), 12 * 3600)
+            return pipe.execute()[0]
+        except Exception:
+            logging.getLogger(__name__).warning('Live notification failed for %s; source data is already committed', kind, exc_info=True)
+            return None
+
     def get_last_stream_id(self, kind: str) -> str:
         """获取某 kind STREAM 的最后消费 id(savedata 落盘用)
 

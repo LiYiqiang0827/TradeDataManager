@@ -135,6 +135,7 @@ def run_index_loop(
             log.info(f"round {round_idx}: indices={len(INDEX_LIST)} quotes={len(quotes)} written={written} archive={archive_key}")
             redis_client.set_meta("snapshot_index_last_round", round_idx)
             redis_client.set_meta("snapshot_index_last_written", written)
+            redis_client.emit_update("snapshot_index", written, source_at=now_dt.timestamp())
 
         except HithinkCLIError as e:
             log.warning(f"CLI 错误: {e}")
@@ -179,6 +180,7 @@ def main() -> int:
                 items.append((ts_code, q))
             written = r.put_snapshots_index_batch(items)
             archive_key = r.commit_snapshots_index_batch(items, now_dt=now_dt)
+            r.emit_update("snapshot_index", written, source_at=now_dt.timestamp())
             log.info(f"once: indices={len(INDEX_LIST)} quotes={len(quotes)} written={written} archive={archive_key}")
         except Exception as e:
             log.error(f"once 失败: {e}")
