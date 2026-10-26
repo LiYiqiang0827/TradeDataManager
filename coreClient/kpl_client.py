@@ -16,6 +16,7 @@
 底层通用调用 .call(c, a, host=..., **params) 可访问任何 endpoint(参考 trading:kpl-api skill)。
 """
 import sys
+import os
 import time
 import json
 import requests
@@ -266,6 +267,14 @@ class KPLClient:
             **params,         # 业务参数可覆盖公共参数(罕见用法)
         }
         try:
+            use_proxy = os.environ.get("KPL_REALTIME_USE_PROXY", "0").strip().lower() in {"1", "true", "yes", "on"}
+            if host == KPL_HOST_APPHWHQ and not use_proxy:
+                # Domestic real-time endpoint: keep TLS verification, avoid the proxy detour.
+                with requests.Session() as session:
+                    session.trust_env = False
+                    r = session.post(url, data=payload, headers=headers, timeout=30)
+                    r.raise_for_status()
+                    return r.json()
             r = requests.post(url, data=payload, headers=headers, timeout=30)
             r.raise_for_status()
             return r.json()

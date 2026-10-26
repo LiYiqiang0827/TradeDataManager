@@ -146,9 +146,10 @@ def run_limitperformance_loop(
                 "limitperformance_last_ts",
                 now_dt.isoformat(timespec="milliseconds"),
             )
+            redis_client.set_meta("limitperformance_last_duration_seconds", round(time.monotonic() - started, 3))
             redis_client.emit_update("limitperformance", written, source_at=now_unix)
             log.info(
-                f"round {round_idx}: limitperformance={written} ts={now_dt.isoformat(timespec='seconds')}",
+                f"round {round_idx}: limitperformance={written} ts={now_dt.isoformat(timespec='seconds')} elapsed={time.monotonic()-started:.3f}s",
             )
         except Exception as e:
             failures += 1
