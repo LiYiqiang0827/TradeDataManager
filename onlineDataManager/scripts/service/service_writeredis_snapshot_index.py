@@ -4,7 +4,7 @@ service/service_writeredis_snapshot_index.py
 
 指数行情快照监控 service(v6.10 2026-09-16 新增)。
 - 8 只固定指数:000001.SH / 399001.SZ / 399006.SZ / 000688.SH / 000016.SH / 000300.SH / 000905.SH / 000852.SH
-- 周期 = 30 秒/轮(用户拍板,2026-09-16)
+- 周期目标 = 3 秒开始到开始(2026-10-26),抓取超时顺延,异常退避
 - 启动时间:上午 09:29-11:31,下午 12:59-15:01(用户原话)
 - 调用 ths_client.fetch_index_snapshot(ths_codes=INDEX_LIST)
 - 写入 Redis(kind=snapshot_index):
@@ -16,7 +16,7 @@ service/service_writeredis_snapshot_index.py
         - online:snapshot_index:timeline ZSet(12h 兜底,不做滑窗)
 
 启动:
-    python3 -m service.service_writeredis_snapshot_index --interval 30
+    python3 -m service.service_writeredis_snapshot_index --interval 3
 
 ⚠️ 注意:
     北证 50(疑似 ticker 899xxx.BJ)ths CLI 暂不支持,等 ths CLI 更新后再追加
@@ -89,7 +89,7 @@ def is_trading_window(now: datetime | None = None) -> bool:
 def run_index_loop(
     redis_client: OnlineRedis,
     *,
-    interval_sec: float = 10.0,    # 2026-09-16 v6.15:10s/轮(用户最新统一规定:普通 kind 频率)
+    interval_sec: float = 3.0,    # Target start-to-start cadence; fetches never overlap.
     log: logging.Logger = None,
     stop_check=None,
     ) -> None:
@@ -97,6 +97,7 @@ def run_index_loop(
     log.info(f"指数快照服务启动, interval={interval_sec}s, indices={len(INDEX_LIST)}")
 
     round_idx = 0
+    failures = 0
     while True:
         if stop_check and stop_check():
             log.info("stop_check 返回 True, 退出循环")
@@ -107,6 +108,7 @@ def run_index_loop(
             time.sleep(interval_sec)
             continue
 
+        started = time.monotonic()
         try:
             quotes = fetch_index_snapshot(INDEX_LIST)
             # v6.14 清理:删 snapshot_unix_ms 死字段(变量名错 + 落盘不用);
@@ -131,6 +133,7 @@ def run_index_loop(
             # ★ 一轮末尾聚合写 snapshot_index:archive + timeline(无 lunch 动态,固定 6h)
             archive_key = redis_client.commit_snapshots_index_batch(items, now_dt=now_dt)
 
+            failures = 0
             round_idx += 1
             log.info(f"round {round_idx}: indices={len(INDEX_LIST)} quotes={len(quotes)} written={written} archive={archive_key}")
             redis_client.set_meta("snapshot_index_last_round", round_idx)
@@ -138,18 +141,21 @@ def run_index_loop(
             redis_client.emit_update("snapshot_index", written, source_at=now_dt.timestamp())
 
         except HithinkCLIError as e:
+            failures += 1
             log.warning(f"CLI 错误: {e}")
             redis_client.set_meta("snapshot_index_last_error", str(e))
         except Exception as e:
+            failures += 1
             log.error(f"snapshot_index 异常: {e}", exc_info=True)
             redis_client.set_meta("snapshot_index_last_error", str(e))
 
-        time.sleep(interval_sec)
+        delay = min(60.0, interval_sec * (2 ** min(failures, 5))) if failures else max(0.0, interval_sec - (time.monotonic() - started))
+        time.sleep(delay)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Service: snapshot_index (指数行情快照)")
-    parser.add_argument("--interval", type=float, default=30.0)
+    parser.add_argument("--interval", type=float, default=3.0)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
 

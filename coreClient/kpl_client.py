@@ -574,7 +574,7 @@ class KPLClient:
 
         endpoint: HomeDingPan/DailyLimitPerformance  (apphwhq)
 
-        用途:onlineDataManager 的 service_writeredis_limitperformance 目标每 6s 拉一次当前涨停详情,
+        用途:onlineDataManager 的 service_writeredis_limitperformance 目标每 3s 拉一次当前涨停详情,
         打 data_timestamp(拉取瞬间 unix int),XADD 进 STREAM → 落盘成盘中涨停快照轨迹。
         同只股多次拉的快照都会落盘(以 ts_code + limit_performance_timestamp 为 UNIQUE key),
         等于把"涨停列表的演化"完整保留。

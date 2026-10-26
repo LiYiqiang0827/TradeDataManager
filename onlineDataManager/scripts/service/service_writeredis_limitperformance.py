@@ -6,7 +6,7 @@ service/service_writeredis_limitperformance.py
 
 涨停表现详情写入 service:
 - KPLClient.fetch_realtime_limit_performance()(apphwhq 实时盯盘 host,盘中可用)
-- 6 秒/轮
+- 3 秒/轮
 - 写 Redis MyATM 风格:
     * online:limitperformance:archive:{unix_ts} HSET(每个 snapshot 300s 各自过期)
     * online:limitperformance:timeline ZSet(12h 兜底 + 滑窗 10 分钟)
@@ -30,7 +30,7 @@ service/service_writeredis_limitperformance.py
   savedata 挂 4 个阶段:auction_savedata / morning_savedata / afternoon_savedata / writer_stopped
 
 启动:
-    python3 -m service.service_writeredis_limitperformance --interval 6
+    python3 -m service.service_writeredis_limitperformance --interval 3
     python3 -m service.service_writeredis_limitperformance --once
 """
 
@@ -98,18 +98,18 @@ def normalize_lp_item(it: dict) -> dict:
 def run_limitperformance_loop(
     redis_client: OnlineRedis,
     *,
-    interval_sec: float = 6.0,
+    interval_sec: float = 3.0,
     log: logging.Logger = None,
     stop_check=None,
 ) -> None:
-    """主循环:6 秒/轮拉涨停表现详情,STREAM 单写"""
+    """主循环:3 秒/轮拉涨停表现详情,STREAM 单写"""
     log = log or logging.getLogger("limitperformance_loop")
     log.info(f"service_writeredis_limitperformance 启动, interval={interval_sec}s")
 
     round_idx = 0
     kpl = KPLClient()
-    # 5 endpoints / 6s needs 50 calls/min; budget is local to this writer process.
-    kpl.rate_limiter.max_per_min = max(kpl.rate_limiter.max_per_min, 60)
+    # 5 endpoints / 3s needs 100 calls/min; budget is local to this writer process.
+    kpl.rate_limiter.max_per_min = max(kpl.rate_limiter.max_per_min, 120)
     failures = 0
 
     while True:
@@ -161,7 +161,7 @@ def run_limitperformance_loop(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Service: writeredis_limitperformance (涨停表现详情)")
-    parser.add_argument("--interval", type=float, default=6.0)
+    parser.add_argument("--interval", type=float, default=3.0)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
 
@@ -178,7 +178,7 @@ def main() -> int:
         try:
             now_unix = datetime.now().timestamp()
             kpl = KPLClient()
-            kpl.rate_limiter.max_per_min = max(kpl.rate_limiter.max_per_min, 60)
+            kpl.rate_limiter.max_per_min = max(kpl.rate_limiter.max_per_min, 120)
             df = kpl.fetch_realtime_limit_performance(workers=5)
             if df.attrs.get("board_errors"):
                 raise RuntimeError("Incomplete KPL board batch")

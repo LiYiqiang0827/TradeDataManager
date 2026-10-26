@@ -238,16 +238,16 @@ def get_phase(now: datetime | None = None, *, calendar_open: bool | None = None)
 # v6.15 (2026-09-16):删除 orderbook(用户原话"不再抓取");普通 kind 8 个(无 orderbook)
 WRITER_DAEMONS_MORNING_AFTERNOON: list[dict] = [
     # --- 7 个常规写入 daemon(09:29-11:31 + 13:00-15:01),v6.15 删除 orderbook ---
-    {"name": "service_writeredis_snapshot", "args": []},
+    {"name": "service_writeredis_snapshot", "args": ["--interval", "3"]},
     {"name": "service_writeredis_minute", "args": []},
     {"name": "service_writeredis_zt", "args": []},
     {"name": "service_writeredis_break", "args": []},
     {"name": "service_writeredis_anomaly", "args": []},
     {"name": "service_writeredis_hot", "args": []},
     # 涨停表现详情：6s start-to-start, five board requests in parallel.
-    {"name": "service_writeredis_limitperformance", "args": ["--interval", "6"]},
+    {"name": "service_writeredis_limitperformance", "args": ["--interval", "3"]},
     # v6.10 (2026-09-16):8 只指数,10s/轮(v6.15 改)
-    {"name": "service_writeredis_snapshot_index", "args": []},
+    {"name": "service_writeredis_snapshot_index", "args": ["--interval", "3"]},
 ]
 
 SAVEDATA_DAEMONS_MORNING_AFTERNOON: list[dict] = [

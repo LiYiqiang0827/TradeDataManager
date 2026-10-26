@@ -5,7 +5,7 @@ service/service_writeredis_snapshot.py
 连续竞价快照监控 service(09:30-15:00,原 service_writeredis_realtime 改名)。
 - 调用同花顺 fetch_snapshots()(不传 stage = 默认实时连续竞价)
 - watchlist = 在线 watchlist(由 service_watchlist 维护)
-- 周期 = 6 秒/轮(2026-09-11:10s → 6s,v2 batch 优化后 CPU 余量充足)
+- 周期目标 = 3 秒开始到开始(2026-10-26),抓取超时顺延,异常退避
 - 写入 Redis(kind=snapshot):
     1) STREAM online:snapshot:stream(200000 maxlen,落盘)
     2) 单股 ZSET online:snapshot:window:{ts_code}(滑窗 30min,12h 兜底)
@@ -16,7 +16,7 @@ service/service_writeredis_snapshot.py
           ZREMRANGEBYSCORE 滑窗 30min(11:00-11:30 扩展到 2h)
 
 启动:
-    python3 -m service.service_writeredis_snapshot --interval 6
+    python3 -m service.service_writeredis_snapshot --interval 3
 """
 
 
@@ -61,7 +61,7 @@ def is_trading_window(now: datetime | None = None) -> bool:
 def run_realtime_loop(
     redis_client: OnlineRedis,
     *,
-    interval_sec: float = 6.0,    # 2026-09-11:10s → 6s
+    interval_sec: float = 3.0,    # Target start-to-start cadence; fetches never overlap.
     log: logging.Logger = None,
     stop_check=None,
     ) -> None:
@@ -69,6 +69,7 @@ def run_realtime_loop(
     log.info(f"连续竞价服务启动, interval={interval_sec}s")
 
     round_idx = 0
+    failures = 0
     while True:
         if stop_check and stop_check():
             log.info("stop_check 返回 True, 退出循环")
@@ -79,6 +80,7 @@ def run_realtime_loop(
             time.sleep(interval_sec)
             continue
 
+        started = time.monotonic()
         try:
             watchlist = redis_client.get_watchlist()
             if not watchlist:
@@ -102,6 +104,7 @@ def run_realtime_loop(
             # ★ v6.3(2026-09-14):一轮末尾聚合写全市场快照索引(timeline + archive)
             archive_key = redis_client.commit_snapshots_batch(items, now_dt=now_dt)
 
+            failures = 0
             round_idx += 1
             log.info(f"round {round_idx}: watchlist={len(watchlist)} quotes={len(quotes)} written={written} archive={archive_key}")
             redis_client.set_meta("snapshot_last_round", round_idx)
@@ -109,18 +112,21 @@ def run_realtime_loop(
             redis_client.emit_update("snapshot", written, source_at=now_dt.timestamp())
 
         except HithinkCLIError as e:
+            failures += 1
             log.warning(f"CLI 错误: {e}")
             redis_client.set_meta("snapshot_last_error", str(e))
         except Exception as e:
+            failures += 1
             log.error(f"snapshot 异常: {e}", exc_info=True)
             redis_client.set_meta("snapshot_last_error", str(e))
 
-        time.sleep(interval_sec)
+        delay = min(60.0, interval_sec * (2 ** min(failures, 5))) if failures else max(0.0, interval_sec - (time.monotonic() - started))
+        time.sleep(delay)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Service: snapshot (连续竞价快照)")
-    parser.add_argument("--interval", type=float, default=6.0)
+    parser.add_argument("--interval", type=float, default=3.0)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
 

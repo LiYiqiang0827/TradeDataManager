@@ -108,7 +108,7 @@
 
 ## §2 Writer Service 全清单(**10 个**,v6.15 含 1 个一次性 + 删 orderbook)
 
-> 实际周期优先看 scheduler 显式参数，其次看 CLI `--interval` 默认值；旧主循环 `interval_sec` 的默认值可能被 CLI 覆盖。2026-10-26：KPL performance 为 6 秒开始到开始、5 个板数并行，其余服务间隔另加一轮抓取耗时。
+> 实际周期优先看 scheduler 显式参数，其次看 CLI `--interval` 默认值；旧主循环 `interval_sec` 的默认值可能被 CLI 覆盖。2026-10-26：个股、指数与 KPL performance 均为 3 秒开始到开始目标，KPL 的 5 个板数并行；单轮耗时超限时不重叠采集，异常退避。
 > **不在 scheduler 阶段里**的 service(auction_writeredis_*)用 `scheduler_onlineData.check_once_triggers` 触发。
 
 ### 2.1 writeredis_watchlist(一次性)
@@ -143,7 +143,7 @@
 | 启动阶段 | `morning_writer`(09:29)+ `afternoon_writer`(13:00) |
 | 关闭阶段 | `lunch`(11:31)+ `writer_stopped`(15:01)|
 | spawn 模式 | daemon |
-| **周期** | **6 秒/轮目标**（2026-10-26，开始到开始，5 接口并行；失败退避） |
+| **周期** | **3 秒/轮目标**（2026-10-26，开始到开始，5 接口并行；失败退避） |
 | 数据源 | `KPLClient.fetch_realtime_limit_performance()`(apphwhq 实时盯盘 host,盘中可用) |
 | 写 Redis key | `online:limitperformance:stream`(STREAM)+ timeline + archive |
 | 备注 | 2026-09-14 v5 新增,**走 MyATM 风格**;v6.15 起不再在 `auction_writer` 阶段启动(只在 morning/afternoon_writer) |
@@ -155,7 +155,7 @@
 | 启动阶段 | `morning_writer`(09:29)+ `afternoon_writer`(13:00) |
 | 关闭阶段 | `lunch`(11:31)+ `writer_stopped`(15:01) |
 | spawn 模式 | daemon |
-| **周期** | **6 秒/轮**(v6.15 不变) |
+| **周期** | **3 秒/轮目标**（开始到开始） |
 | **🔒 内部时间窗** | `is_trading_window()` = **09:30-15:00** 工作日 — 窗口外只 sleep 不拉数据 |
 | 数据源 | 同花顺 `fetch_snapshots(watchlist)`(85 只 watchlist) |
 | 写 Redis key | `online:snapshot:stream`(STREAM,MAXLEN=200000)+ timeline + archive + window HASH |
@@ -168,11 +168,11 @@
 | 启动阶段 | `morning_writer`(09:29)+ `afternoon_writer`(13:00) |
 | 关闭阶段 | `lunch`(11:31)+ `writer_stopped`(15:01) |
 | spawn 模式 | daemon |
-| **周期** | **30 秒/轮**（CLI 实际默认） |
+| **周期** | **3 秒/轮目标**（开始到开始） |
 | **🔒 内部时间窗** | `is_trading_window()` = **09:30-15:00** 工作日 — 窗口外只 sleep 不拉数据 |
 | 数据源 | 同花顺 `fetch_index_snapshot(INDEX_LIST)`(8 只固定指数) |
 | 写 Redis key | `online:snapshot_index:stream`(STREAM,MAXLEN=3000)+ timeline + archive + window HASH |
-| 备注 | 8 只固定指数(000001.SH/399001.SZ/399006.SZ/000688.SH/000016.SH/000300.SH/000905.SH/000852.SH);v6.10 接入,当前 CLI 默认 30s |
+| 备注 | 8 只固定指数(000001.SH/399001.SZ/399006.SZ/000688.SH/000016.SH/000300.SH/000905.SH/000852.SH);v6.10 接入,当前 CLI 默认 3s |
 
 ### 2.6 writeredis_minute
 
@@ -391,14 +391,14 @@
 |---|---|---|---|---|
 | `writeredis_watchlist` | 一次性 | `watchlist` | — | db_cn_kpl.db |
 | `writeredis_auction` | **6 秒** | `auction_writer` | **09:15-09:25** | fetch_auction_snapshots |
-| `writeredis_snapshot` | **6 秒** | morning + afternoon | **09:30-15:00** | fetch_snapshots(同花顺) |
-| `writeredis_snapshot_index` 🆕 | **30 秒** | morning + afternoon | **09:30-15:00** | fetch_index_snapshot(8 只指数) |
+| `writeredis_snapshot` | **3 秒目标** | morning + afternoon | **09:30-15:00** | fetch_snapshots(同花顺) |
+| `writeredis_snapshot_index` 🆕 | **3 秒目标** | morning + afternoon | **09:30-15:00** | fetch_index_snapshot(8 只指数) |
 | `writeredis_minute` | **60 秒** | morning + afternoon | (无内部窗口) | pytdx 分钟 K |
 | `writeredis_zt` | **30 秒** | morning + afternoon | (无内部窗口) | fetch_limitup_pool |
 | `writeredis_break` | **60 秒** | morning + afternoon | (无内部窗口) | fetch_limitbreak_pool |
 | `writeredis_anomaly` | **120 秒** | morning + afternoon | (无内部窗口) | fetch_anomaly_list |
 | `writeredis_hot` | **120 秒**(v6.15 原 300s) | morning + afternoon | (无内部窗口) | fetch_hot_stock |
-| `writeredis_limitperformance` | **6 秒目标** | morning + afternoon | (无内部窗口) | KPLClient.fetch_realtime_limit_performance |
+| `writeredis_limitperformance` | **3 秒目标** | morning + afternoon | (无内部窗口) | KPLClient.fetch_realtime_limit_performance |
 | ~~`writeredis_orderbook`~~ | 🔴 **停用** | — | — | — |
 
 ### 5.2 Savedata 落盘周期(**9 个**,v6.15 删 orderbook + 加 snapshot_index)
