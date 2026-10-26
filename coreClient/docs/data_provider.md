@@ -1383,3 +1383,19 @@ db 和 online 返回的列可能有差异(比如 online 缺 `snap_ts`),`_align_c
 - 每次 `service_index_daily` 更新后自动刷新；首轮历史补齐与维护可用
   `python -m coreClient.index_period`。支持 RemoteProvider 的同名只读接口。
 - 实时叠加、历史部分周期及重复累计保护详见 [指数周期数据](index_period.md)。
+
+## 多窗口分钟读取（2026-10-27）
+
+`get_oneMin` 和 `get_fifteenMin` 新增可选参数 `date_ranges`，
+与 `trade_date`、`start_date`、`end_date` 互斥，必须指定股票代码：
+
+```python
+frame = get_oneMin(
+    ts_code="605488.SH",
+    date_ranges=[("20260401", "20260415"), ("20261013", "20261027")],
+)
+```
+
+每个接口只执行一次行情查询，重叠窗口自动合并；不读取窗口之间的日期。
+返回格式和原有单窗口接口一致，由调用方按日期切分；此接口仍返回原始分钟数据，
+复权由原有上层逻辑处理。15 分钟日期范围已明确时不再额外查询全库日期边界。

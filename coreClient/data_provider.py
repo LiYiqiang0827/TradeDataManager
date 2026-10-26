@@ -451,12 +451,15 @@ def get_fifteenMin(
     end_date: Optional[str] = None,
     columns: Optional[list] = None,
     data_root: Optional[Union[str, Path]] = None,
+    date_ranges: Optional[list] = None,
 ) -> pd.DataFrame:
     """读取TDX原生全市场15分钟OHLC DuckDB数据。
 
     主库为 ``offlineDataManager/data/db_fifteenMinute.db``。该接口不再读取
     原淘宝CSV转换库，也不在线回退；下载和增量更新由
     ``service_fifteenMinute.py``负责。
+    ``date_ranges=[(start, end), ...]`` 可在一次查询中读取多个窗口，
+    与 trade_date/start_date/end_date 互斥，不读取窗口之间的空档。
     """
     from offlineDataManager.scripts.core.offline_db_client import get_fifteen_min
 
@@ -468,6 +471,7 @@ def get_fifteenMin(
         end_date=end_date,
         columns=columns,
         data_root=data_root,
+        date_ranges=date_ranges,
     )
 
 
@@ -479,6 +483,7 @@ def get_oneMin(
     end_date: Optional[str] = None,
     columns: Optional[list] = None,
     data_root: Optional[Union[str, Path]] = None,
+    date_ranges: Optional[list] = None,
 ) -> pd.DataFrame:
     """读取全市场完整1分钟OHLC Parquet数据。
 
@@ -489,6 +494,8 @@ def get_oneMin(
 
         ts_code, name, trade_date, datetime, time_idx,
         open, high, low, close, vol, amount, adj_factor
+    ``date_ranges=[(start, end), ...]`` 可在一次查询中读取多个窗口，
+    与 trade_date/start_date/end_date 互斥，不读取窗口之间的空档。
     """
     from offlineDataManager.scripts.core.one_min_store import get_one_min
 
@@ -500,6 +507,7 @@ def get_oneMin(
         end_date=end_date,
         columns=columns,
         root=data_root,
+        date_ranges=date_ranges,
     )
     frame.attrs["quality_query"] = "get_oneMin_quality(trade_date=..., ts_code=...)"
     if trade_date is not None:

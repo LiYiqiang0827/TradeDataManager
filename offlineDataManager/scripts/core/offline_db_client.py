@@ -4010,6 +4010,7 @@ def get_fifteen_min(
     end_date: Optional[str] = None,
     columns: Optional[List[str]] = None,
     data_root: Optional[Union[str, Path]] = None,
+    date_ranges: Optional[list] = None,
 ) -> pd.DataFrame:
     from core.tdx_fifteen_min_store import get_fifteen_min as _get_fifteen_min
     return _get_fifteen_min(
@@ -4020,6 +4021,7 @@ def get_fifteen_min(
         end_date=end_date,
         columns=columns,
         root=data_root,
+        date_ranges=date_ranges,
     )
 
 

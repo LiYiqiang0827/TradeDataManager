@@ -427,6 +427,7 @@ def get_one_min(
     end_date: Optional[Union[str, datetime, int]] = None,
     columns: Optional[Sequence[str]] = None,
     root: Optional[Union[str, Path]] = None,
+    date_ranges: Optional[Sequence[tuple]] = None,
 ) -> pd.DataFrame:
     """读取全市场1分钟OHLC数据，不访问旧SQLite，不联网补数。
 
@@ -437,6 +438,29 @@ def get_one_min(
     codes = _normalize_codes(ts_code, ts_codes)
     if trade_date is not None and (start_date is not None or end_date is not None):
         raise ValueError("trade_date 与 start_date/end_date 互斥")
+    ranges = None
+    if date_ranges is not None:
+        if trade_date is not None or start_date is not None or end_date is not None:
+            raise ValueError("date_ranges 与 trade_date/start_date/end_date 互斥")
+        if not codes:
+            raise ValueError("date_ranges 查询必须指定股票代码")
+        if not date_ranges:
+            raise ValueError("date_ranges 不能为空")
+        ranges = []
+        for pair in date_ranges:
+            if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+                raise ValueError("date_ranges 每项必须为 (start_date, end_date)")
+            lo, hi = (normalize_trade_date(value) for value in pair)
+            if lo > hi:
+                raise ValueError("start_date不能晚于end_date")
+            ranges.append((lo, hi))
+        merged = []
+        for lo, hi in sorted(ranges):
+            if merged and lo <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(hi, merged[-1][1]))
+            else:
+                merged.append((lo, hi))
+        ranges = merged
     if columns is not None:
         unknown = sorted(set(columns) - set(STANDARD_COLUMNS))
         if unknown:
@@ -445,11 +469,13 @@ def get_one_min(
         raise FileNotFoundError(f"oneMin Parquet目录不存在或外置硬盘未挂载: {base}")
 
     available = None
-    if trade_date is None and (start_date is None or end_date is None):
+    if ranges is None and trade_date is None and (start_date is None or end_date is None):
         available = list_one_min_dates(base)
         if not available:
             return _empty_frame(columns)
-    if trade_date is not None:
+    if ranges is not None:
+        start, end = ranges[0][0], ranges[-1][1]
+    elif trade_date is not None:
         start = end = normalize_trade_date(trade_date)
     else:
         if not codes and start_date is None and end_date is None:
@@ -459,7 +485,8 @@ def get_one_min(
     if start > end:
         raise ValueError(f"start_date不能晚于end_date: {start}>{end}")
 
-    files = _discover_files(base, start, end)
+    ranges = ranges or [(start, end)]
+    files = sorted({path for lo, hi in ranges for path in _discover_files(base, lo, hi)})
     if not files:
         return _empty_frame(columns)
     if not codes and start != end:
@@ -469,8 +496,8 @@ def get_one_min(
     # 字段名经过白名单校验，条件值始终参数化。
     # Pass the selected files, not the full-history glob. DuckDB otherwise opens
     # hundreds of irrelevant Parquet footers before applying the date predicate.
-    where = ["trade_date BETWEEN ? AND ?"]
-    params: list = [[str(path) for path in files], int(start), int(end)]
+    where = ["(" + " OR ".join("trade_date BETWEEN ? AND ?" for _ in ranges) + ")"]
+    params: list = [[str(path) for path in files], *[int(day) for pair in ranges for day in pair]]
     if codes:
         where.append("ts_code IN (" + ",".join("?" for _ in codes) + ")")
         params.extend(codes)

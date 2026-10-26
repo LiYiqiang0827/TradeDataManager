@@ -483,6 +483,7 @@ def get_fifteen_min(
     end_date: Optional[Union[str, datetime, int]] = None,
     columns: Optional[Sequence[str]] = None,
     root: Optional[Union[str, Path]] = None,
+    date_ranges: Optional[Sequence[tuple]] = None,
 ) -> pd.DataFrame:
     database = _database_path(root)
     if not database.is_file():
@@ -490,18 +491,45 @@ def get_fifteen_min(
     codes = _normalize_codes(ts_code, ts_codes)
     if trade_date is not None and (start_date is not None or end_date is not None):
         raise ValueError("trade_date 与 start_date/end_date 互斥")
+    ranges = None
+    if date_ranges is not None:
+        if trade_date is not None or start_date is not None or end_date is not None:
+            raise ValueError("date_ranges 与 trade_date/start_date/end_date 互斥")
+        if not codes:
+            raise ValueError("date_ranges 查询必须指定股票代码")
+        if not date_ranges:
+            raise ValueError("date_ranges 不能为空")
+        ranges = []
+        for pair in date_ranges:
+            if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+                raise ValueError("date_ranges 每项必须为 (start_date, end_date)")
+            lo, hi = (normalize_trade_date(value) for value in pair)
+            if lo > hi:
+                raise ValueError("start_date不能晚于end_date")
+            ranges.append((lo, hi))
+        merged = []
+        for lo, hi in sorted(ranges):
+            if merged and lo <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(hi, merged[-1][1]))
+            else:
+                merged.append((lo, hi))
+        ranges = merged
     if columns is not None:
         unknown = sorted(set(columns) - set(STANDARD_COLUMNS))
         if unknown:
             raise ValueError(f"未知fifteenMin字段: {unknown}")
     selected = list(columns) if columns is not None else STANDARD_COLUMNS
     with duckdb.connect(str(database), read_only=True) as conn:
-        bounds = conn.execute(
-            "SELECT MIN(trade_date), MAX(trade_date) FROM fifteen_min_bars"
-        ).fetchone()
-        if not bounds or bounds[0] is None:
-            return _empty_frame(columns)
-        if trade_date is not None:
+        bounds = None
+        if ranges is None and trade_date is None and (start_date is None or end_date is None):
+            bounds = conn.execute(
+                "SELECT MIN(trade_date), MAX(trade_date) FROM fifteen_min_bars"
+            ).fetchone()
+            if not bounds or bounds[0] is None:
+                return _empty_frame(columns)
+        if ranges is not None:
+            start, end = ranges[0][0], ranges[-1][1]
+        elif trade_date is not None:
             start = end = normalize_trade_date(trade_date)
         else:
             if not codes and start_date is None and end_date is None:
@@ -512,8 +540,9 @@ def get_fifteen_min(
             raise ValueError(f"start_date不能晚于end_date: {start}>{end}")
         if not codes and start != end:
             raise ValueError("全市场fifteenMin查询只允许单个trade_date；日期范围查询必须指定股票代码")
-        where = ["trade_date BETWEEN ? AND ?"]
-        params: list = [int(start), int(end)]
+        ranges = ranges or [(start, end)]
+        where = ["(" + " OR ".join("trade_date BETWEEN ? AND ?" for _ in ranges) + ")"]
+        params: list = [int(day) for pair in ranges for day in pair]
         if codes:
             where.append("ts_code IN (" + ",".join("?" for _ in codes) + ")")
             params.extend(codes)
