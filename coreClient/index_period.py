@@ -89,6 +89,13 @@ def _summarize(rows):
             "trade_date":rows[-1]["trade_date"],"trading_days":len(rows)}
 
 
+def _period_source_hash(rows, previous_close):
+    prior = previous_close if previous_close is not None else rows[0].get("pre_close")
+    prior = float(prior) if isinstance(prior,(int,float)) and math.isfinite(prior) and prior>0 else None
+    signature = [[row.get(key) for key in ("trade_date",*DATA_FIELDS)] for row in rows]
+    return hashlib.sha256(json.dumps([prior,signature],separators=(",",":"),allow_nan=False).encode()).hexdigest()
+
+
 def _record(code, period, rows, previous_close, stamp):
     key,start,end = period_bounds(rows[0]["trade_date"],period)
     total = _summarize(rows); prefix = _summarize(rows[:-1])
@@ -99,8 +106,7 @@ def _record(code, period, rows, previous_close, stamp):
               "first_trade_date":rows[0]["trade_date"],**total,"pre_close":prior,"change":change,
               "pct_chg":change/prior*100 if prior is not None else None,"snap_ts":stamp}
     values.update({"before_last_"+key:value for key,value in prefix.items()})
-    signature = [[row.get(key) for key in ("trade_date",*DATA_FIELDS)] for row in rows]
-    values["source_hash"] = hashlib.sha256(json.dumps([prior,signature],separators=(",",":"),allow_nan=False).encode()).hexdigest()
+    values["source_hash"] = _period_source_hash(rows, previous_close)
     return values
 
 
@@ -126,7 +132,7 @@ class IndexPeriodStore:
             conn.commit(); conn.execute("BEGIN IMMEDIATE")
             codes = sorted(set(ts_codes or [row[0] for row in conn.execute("SELECT DISTINCT ts_code FROM tbl_cn_index_daily WHERE ts_code IS NOT NULL")]))
             stamp = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat(timespec="seconds")
-            report = {"codes":len(codes),"weekly":0,"monthly":0,"changed":0,"excluded_daily_rows":0,"latest_date":None}
+            report = {"codes":len(codes),"weekly":0,"monthly":0,"changed":0,"reaggregated":0,"reused":0,"excluded_daily_rows":0,"latest_date":None}
             for code in codes:
                 raw = [dict(row) for row in conn.execute("SELECT trade_date,open,high,low,close,pre_close,vol,amount FROM tbl_cn_index_daily WHERE ts_code=? ORDER BY trade_date",(code,))]
                 rows = [row for row in raw if valid_ohlc(row)]
@@ -136,17 +142,24 @@ class IndexPeriodStore:
                 for period,table in PERIOD_TABLES.items():
                     groups = {}
                     for row in rows: groups.setdefault(period_bounds(row["trade_date"],period)[0],[]).append(row)
+                    existing_hashes={row[0]:row[1] for row in conn.execute(f"SELECT period_key,source_hash FROM {table} WHERE ts_code=?",(code,))}
                     records=[]; previous_close=None
-                    for group in groups.values():
-                        record = _record(code,period,group,previous_close,stamp)
-                        records.append(record); previous_close=record["close"]
+                    for period_key,group in groups.items():
+                        # Validate all source groups so historical repairs are detected,
+                        # but aggregate OHLCV/prefixes only for changed periods.
+                        if existing_hashes.get(period_key)==_period_source_hash(group,previous_close):
+                            report["reused"]+=1
+                        else:
+                            records.append(_record(code,period,group,previous_close,stamp))
+                            report["reaggregated"]+=1
+                        previous_close=group[-1]["close"]
                     before=conn.total_changes
                     updates=",".join(f"{key}=excluded.{key}" for key in COLUMNS if key not in ("ts_code","period_key"))
                     sql=f"INSERT INTO {table} ({','.join(COLUMNS)}) VALUES ({','.join('?' for _ in COLUMNS)}) ON CONFLICT(ts_code,period_key) DO UPDATE SET {updates} WHERE {table}.source_hash<>excluded.source_hash"
                     conn.executemany(sql,[[record.get(key) for key in COLUMNS] for record in records])
                     existing={row[0] for row in conn.execute(f"SELECT period_key FROM {table} WHERE ts_code=?",(code,))}
                     conn.executemany(f"DELETE FROM {table} WHERE ts_code=? AND period_key=?",[(code,key) for key in existing-set(groups)])
-                    report["changed"] += conn.total_changes-before; report[period] += len(records)
+                    report["changed"] += conn.total_changes-before; report[period] += len(groups)
             conn.commit()
         return report
 
