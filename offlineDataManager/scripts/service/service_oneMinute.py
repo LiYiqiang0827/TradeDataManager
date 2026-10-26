@@ -3,7 +3,8 @@
 正式口径为09:31—11:30、13:01—15:00，每个完整交易日240根。从
 2026-05-07起以TDX原生1分钟OHLC为主；更早的既有Parquet通过迁移命令删除
 09:30并重排time_idx。TDX服务器历史覆盖不足的早期个股仅从已标准化CSV补齐，
-并在清单中明确标记。下载先写staging，全部成功后才原子替换逐日正式分区。
+并在清单中明确标记。下载先写staging，全部成功或有完整停牌无交易证据后，
+再原子替换逐日正式分区。未经证实的空返回仍按失败处理。
 """
 from __future__ import annotations
 
@@ -95,6 +96,37 @@ def _max_pages(start_date: str, end_date: str, configured: int | None) -> int:
     ).days + 1
     estimated_bars = math.ceil(natural_days / 365 * 250 * 240)
     return max(2, math.ceil(estimated_bars / 800) + 2)
+
+
+def _confirmed_non_trading_range(start: str, end: str, code: str) -> bool:
+    """Accept an empty native response only with complete market/day halt evidence.
+
+    Weekend + one halted session is still a single trading session. Do not infer
+    a genuine halt from empty minute data or missing daily rows alone.
+    """
+    sessions = _trade_dates(start, end)
+    if not sessions:
+        return True
+    conn = get_conn("basic")
+    try:
+        if conn.execute(
+            "SELECT 1 FROM tbl_cn_day WHERE ts_code=? AND trade_date BETWEEN ? AND ? LIMIT 1",
+            (code, start, end),
+        ).fetchone():
+            return False
+        for day in sessions:
+            if not conn.execute("SELECT 1 FROM tbl_cn_day WHERE trade_date=? LIMIT 1", (day,)).fetchone():
+                return False
+            event = conn.execute(
+                "SELECT suspend_type,suspend_timing FROM tbl_cn_suspend "
+                "WHERE ts_code=? AND trade_date<=? ORDER BY trade_date DESC,suspend_type ASC LIMIT 1",
+                (code, day),
+            ).fetchone()
+            if not event or event[0] != "S" or (event[1] or "").strip():
+                return False
+        return True
+    finally:
+        conn.close()
 
 
 def _thread_client() -> TdxClient:
@@ -250,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
             if (
                 covered_start is not None and covered_end is not None
                 and covered_start <= int(desired_start) and covered_end >= int(desired_end)
-                and str(current.status) == "downloaded"
+                and str(current.status) in {"downloaded", "empty"}
             ):
                 skipped += 1
                 continue
@@ -297,15 +329,18 @@ def main(argv: list[str] | None = None) -> int:
                         catalog_path=catalog,
                     )
                 elif not outcome["rows"]:
-                    single_day = outcome["request_start"] == outcome["desired_end"]
-                    status = "empty" if single_day else "tdx_empty"
-                    stats["empty" if single_day else "failed"] += 1
+                    verified_empty = _confirmed_non_trading_range(
+                        outcome["request_start"], outcome["desired_end"], outcome["code"],
+                    )
+                    stats["empty" if verified_empty else "failed"] += 1
                     mark_tdx_one_min_sync(
                         outcome["code"], outcome["request_start"], outcome["desired_end"],
-                        status=status, source_host=outcome["host"],
-                        error=None if single_day else "TDX长区间返回空数据",
+                        status="empty" if verified_empty else "tdx_empty", source_host=outcome["host"],
+                        error=None if verified_empty else "TDX返回空数据，缺少完整无交易/整日停牌证据",
                         catalog_path=catalog,
                     )
+                    if verified_empty:
+                        logger.info(f"{outcome['code']} {outcome['request_start']}..{outcome['desired_end']} 已确认无交易")
                 else:
                     batch.append(outcome)
                     if len(batch) >= args.write_batch_size:
