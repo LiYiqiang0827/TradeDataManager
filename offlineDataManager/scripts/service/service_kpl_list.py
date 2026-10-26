@@ -39,6 +39,8 @@ def main():
         )
         n = down.update_kpl_list(start_date=sd, end_date=ed)
         logger.info(f"[service_kpl_list] 完成({desc}): +{n:,} 行, 用时 {time.time()-t0:.1f}s")
+        from service.ladder_update_hook import refresh_after_source_update
+        refresh_after_source_update(sd, ed)
         return 0
     except Exception as e:
         logger.error(f"[service_kpl_list] 失败: {e}", exc_info=True)

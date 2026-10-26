@@ -286,6 +286,10 @@ def task_full_update():
         except RuntimeError as e:
             logger.error(f"[完整更新] {svc} 失败(继续下一项): {e}")
 
+    try:
+        spawn_service("service_limitup_ladder", [], sync=True)
+    except RuntimeError as e:
+        logger.error(f"[完整更新] 天梯节点库刷新失败，保留上一版本: {e}")
     logger.info(f"[完整更新] 全部完成,总用时 {time.time()-t0:.1f}s")
 
 
@@ -327,6 +331,10 @@ def task_morning_update():
     except RuntimeError as e:
         logger.error(f"[早上更新] 题材知识库增量失败(继续): {e}")
 
+    try:
+        spawn_service("service_limitup_ladder", [], sync=True)
+    except RuntimeError as e:
+        logger.error(f"[早上更新] 天梯节点库刷新失败，保留上一版本: {e}")
     logger.info(f"[早上更新] 全部完成,总用时 {time.time()-t0:.1f}s")
 
 
