@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import json
 from pathlib import Path
@@ -391,10 +391,19 @@ def _catalog_record_failure(
 
 def _discover_files(root: Path, start_date: str, end_date: str) -> list[Path]:
     files: list[Path] = []
-    for path in root.glob("year=*/month=*/trade_date=*/part-*.parquet"):
-        match = _DATE_RE.search(path.parent.name)
-        if match and start_date <= match.group(1) <= end_date:
-            files.append(path)
+    start = datetime.strptime(start_date, "%Y%m%d")
+    end = datetime.strptime(end_date, "%Y%m%d")
+    if (end-start).days <= 93:
+        # Bounded ranges must not enumerate every historical partition.
+        day = start
+        while day <= end:
+            files.extend(_partition_dir(root, day.strftime("%Y%m%d")).glob("part-*.parquet"))
+            day += timedelta(days=1)
+    else:
+        for path in root.glob("year=*/month=*/trade_date=*/part-*.parquet"):
+            match = _DATE_RE.search(path.parent.name)
+            if match and start_date <= match.group(1) <= end_date:
+                files.append(path)
     return sorted(files)
 
 
@@ -435,9 +444,11 @@ def get_one_min(
     if not base.exists():
         raise FileNotFoundError(f"oneMin Parquet目录不存在或外置硬盘未挂载: {base}")
 
-    available = list_one_min_dates(base)
-    if not available:
-        return _empty_frame(columns)
+    available = None
+    if trade_date is None and (start_date is None or end_date is None):
+        available = list_one_min_dates(base)
+        if not available:
+            return _empty_frame(columns)
     if trade_date is not None:
         start = end = normalize_trade_date(trade_date)
     else:
@@ -456,9 +467,10 @@ def get_one_min(
     selected = list(columns) if columns is not None else STANDARD_COLUMNS
     # DuckDB对跨大量日文件的Parquet行组过滤显著快于逐文件PyArrow Dataset扫描。
     # 字段名经过白名单校验，条件值始终参数化。
-    glob_path = str(base / "year=*" / "month=*" / "trade_date=*" / "part-*.parquet")
+    # Pass the selected files, not the full-history glob. DuckDB otherwise opens
+    # hundreds of irrelevant Parquet footers before applying the date predicate.
     where = ["trade_date BETWEEN ? AND ?"]
-    params: list = [glob_path, int(start), int(end)]
+    params: list = [[str(path) for path in files], int(start), int(end)]
     if codes:
         where.append("ts_code IN (" + ",".join("?" for _ in codes) + ")")
         params.extend(codes)
@@ -468,6 +480,9 @@ def get_one_min(
     )
     with duckdb.connect(":memory:") as conn:
         frame = conn.execute(sql, params).fetchdf()
+    if "datetime" in frame.columns:
+        # A bounded file set can infer ns instead of us; keep the public type stable.
+        frame["datetime"] = frame["datetime"].astype("datetime64[us]")
     sort_cols = [name for name in ("ts_code", "trade_date", "time_idx", "datetime") if name in frame.columns]
     if sort_cols and not frame.empty:
         frame = frame.sort_values(sort_cols, kind="stable").reset_index(drop=True)
