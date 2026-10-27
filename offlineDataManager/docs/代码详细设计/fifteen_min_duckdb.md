@@ -87,3 +87,6 @@ cd ~/TradingDataManager/offlineDataManager/scripts
 
 也可使用 `--one-minute /path/catalog.duckdb --fifteen-minute /path/db_fifteenMinute.db`
 显式指定两份正式库。重复执行保持已有控制记录，不触发下载。
+
+正式DuckDB写连接遇到其他进程的短暂读锁时，最多等待30秒并退避重试；
+只重试文件锁异常，其他存储错误照常抛出。状态窗口在采集进程运行时避让数据库连接。

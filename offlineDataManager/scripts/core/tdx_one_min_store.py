@@ -15,7 +15,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from config.settings import ONE_MIN_CATALOG_PATH, ONE_MIN_PARQUET_ROOT
-from core.minute_control import record_minute_update
+from core.minute_control import connect_minute_writer, record_minute_update
 from core.one_min_store import (
     SCHEMA_VERSION, STANDARD_COLUMNS, _manifest_path, _open_catalog,
     _partition_dir, list_one_min_dates, normalize_trade_date,
@@ -94,7 +94,7 @@ def remove_one_min_partition(
     shutil.rmtree(partition, ignore_errors=True)
     manifest.unlink(missing_ok=True)
     catalog = ensure_tdx_one_min_catalog(catalog_path)
-    with duckdb.connect(str(catalog)) as conn:
+    with connect_minute_writer(catalog) as conn:
         conn.execute("BEGIN")
         try:
             conn.execute("DELETE FROM one_min_ingest_catalog WHERE trade_date=?", [day])
@@ -126,7 +126,7 @@ def mark_tdx_one_min_sync(
         if item.get("trade_date") is not None
     })
     covered = status in {"downloaded", "empty"}
-    with duckdb.connect(str(catalog)) as conn:
+    with connect_minute_writer(catalog) as conn:
         previous = conn.execute(
             "SELECT covered_start, covered_end, row_count FROM one_min_tdx_sync WHERE ts_code=?",
             [ts_code],
@@ -335,7 +335,7 @@ def _record_tdx_partition(
     catalog = ensure_tdx_one_min_catalog(catalog_path)
     now = _utc_now()
     uri = f"tdx://security-bars/1min/{day}"
-    with duckdb.connect(str(catalog)) as conn:
+    with connect_minute_writer(catalog) as conn:
         conn.execute("BEGIN")
         try:
             conn.execute("""

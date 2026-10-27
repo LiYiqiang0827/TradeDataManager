@@ -19,6 +19,22 @@ def _timestamp(value=None):
     return value.isoformat(timespec="seconds")
 
 
+def connect_minute_writer(path, *, timeout=30.0):
+    """短暂只读连接也会挡住DuckDB跨进程写锁；等待后重试，不丢下载断点。"""
+    import time
+    import duckdb
+    deadline = time.monotonic() + timeout
+    delay = 0.05
+    while True:
+        try:
+            return duckdb.connect(str(path))
+        except duckdb.IOException as exc:
+            if 'lock' not in str(exc).lower() or time.monotonic() >= deadline:
+                raise
+            time.sleep(min(delay, max(0, deadline - time.monotonic())))
+            delay = min(0.5, delay * 1.5)
+
+
 def ensure_minute_control(conn, kind):
     table, key, seed_sql = CONTROLS[kind]
     conn.execute(f"CREATE TABLE IF NOT EXISTS {table} (key VARCHAR PRIMARY KEY, max_date VARCHAR, updated_at VARCHAR)")
@@ -63,7 +79,7 @@ def main():
     for kind, path in (('one_minute', args.one_minute), ('fifteen_minute', args.fifteen_minute)):
         if not Path(path).is_file():
             raise FileNotFoundError(path)
-        with duckdb.connect(str(path)) as conn:
+        with connect_minute_writer(path) as conn:
             conn.execute('BEGIN')
             try:
                 ensure_minute_control(conn, kind)

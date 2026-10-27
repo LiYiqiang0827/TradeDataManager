@@ -16,7 +16,7 @@ import duckdb
 import pandas as pd
 
 from config.settings import FIFTEEN_MIN_DB_PATH
-from core.minute_control import ensure_minute_control, record_minute_update, touch_minute_update
+from core.minute_control import connect_minute_writer, ensure_minute_control, record_minute_update, touch_minute_update
 
 
 SCHEMA_VERSION = "tdx_fifteen_min_duckdb.v2"
@@ -59,7 +59,7 @@ def ensure_fifteen_min_schema(
 ) -> Path:
     database = _database_path(root)
     database.parent.mkdir(parents=True, exist_ok=True)
-    with duckdb.connect(str(database)) as conn:
+    with connect_minute_writer(database) as conn:
         try:
             previous_version = conn.execute(
                 "SELECT value FROM fifteen_min_meta WHERE key='schema_version'"
@@ -257,7 +257,7 @@ def write_fifteen_min_batch(
     day_counts["source_host"] = day_counts["ts_code"].map(hosts)
     day_counts["updated_at"] = now
     connection_context = (
-        duckdb.connect(str(database)) if connection is None else nullcontext(connection)
+        connect_minute_writer(database) if connection is None else nullcontext(connection)
     )
     with connection_context as conn:
         conn.register("incoming_fifteen_min", frame)
@@ -415,7 +415,7 @@ def repair_fifteen_min_adj_factors(
     frame = frame.drop_duplicates(["ts_code", "trade_date"])
     result["valid_factor_keys"] = len(frame)
     database = _database_path(root) if connection is not None else ensure_fifteen_min_schema(root)
-    context = nullcontext(connection) if connection is not None else duckdb.connect(str(database))
+    context = nullcontext(connection) if connection is not None else connect_minute_writer(database)
     with context as conn:
         conn.register("repair_fifteen_factors", frame)
         try:
@@ -456,7 +456,7 @@ def mark_fifteen_min_sync(
     # 断点，否则下一次会从错误的covered_end之后开始，永久漏掉历史数据。
     covered_start = start if status == "empty" else None
     covered_end = end if status == "empty" else None
-    with duckdb.connect(str(database)) as conn:
+    with connect_minute_writer(database) as conn:
         conn.execute("""
             INSERT INTO fifteen_min_sync
             VALUES (?, ?, ?, NULL, NULL, 0, ?, ?, ?, ?)
@@ -589,7 +589,7 @@ def optimize_fifteen_min_database(
 ) -> dict:
     """按股票和时间重写事实表并创建查询索引；用于大批量回补完成后。"""
     database = ensure_fifteen_min_schema(root)
-    with duckdb.connect(str(database)) as conn:
+    with connect_minute_writer(database) as conn:
         conn.execute("BEGIN")
         try:
             conn.execute("DROP TABLE IF EXISTS fifteen_min_bars_sorted")

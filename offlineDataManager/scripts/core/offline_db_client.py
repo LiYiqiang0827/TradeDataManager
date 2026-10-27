@@ -4043,9 +4043,9 @@ class FifteenMinuteWriter:
     """复用单个DuckDB写连接，避免全市场回补时每只股票重复开关数据库。"""
 
     def __init__(self, data_root: Optional[Union[str, Path]] = None):
-        import duckdb
+        from core.minute_control import connect_minute_writer
         self.data_root = init_fifteen_min_db(data_root)
-        self.connection = duckdb.connect(str(self.data_root))
+        self.connection = connect_minute_writer(self.data_root)
 
     def upsert(self, rows, **kwargs) -> dict:
         kwargs["data_root"] = self.data_root

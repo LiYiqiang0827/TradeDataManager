@@ -29,7 +29,7 @@ except ImportError as exc:  # pragma: no cover - environment error is explicit
     raise ImportError("oneMin存储需要 pyarrow，请先安装项目依赖") from exc
 
 from config.settings import ONE_MIN_CATALOG_PATH, ONE_MIN_PARQUET_ROOT
-from core.minute_control import ensure_minute_control, record_minute_update
+from core.minute_control import connect_minute_writer, ensure_minute_control, record_minute_update
 
 
 SCHEMA_VERSION = "one_min_ohlc.v3_240bars"
@@ -90,7 +90,7 @@ def _catalog_path(path: Optional[Union[str, Path]] = None) -> Path:
 def _open_catalog(path: Optional[Union[str, Path]] = None):
     catalog = _catalog_path(path)
     catalog.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(catalog))
+    conn = connect_minute_writer(catalog)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS one_min_ingest_catalog (
