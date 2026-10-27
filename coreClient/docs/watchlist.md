@@ -2,6 +2,7 @@
 
 `coreClient.watchlist.WatchlistStore` 独立于行情原始表，默认持久库为
 `TradingDatabase/offline/watchlists.db`。首次启动创建 SQLite WAL 表结构，不联网、不写行情表。
+如果没有任何分组，自动持久创建“默认分组”；已有分组时不重复创建。
 
 ```python
 from coreClient.watchlist import WatchlistStore
@@ -20,6 +21,8 @@ snapshot = store.snapshot()  # 正常读取直接命中 Redis
 - Redis 不可用时 SQLite 仍保存修改，当前 store 标记缓存需重建，恢复后重新发布。
 - Redis 键 `tradingalert:watchlists:v1:<路径哈希>`，保留七天；验证库与正式库不会共用同一键。
 - 表为 `watchlist_group`、`watchlist_stock`、`watchlist_member`、`watchlist_meta`，股票与分组为多对多关系，分组数量不影响历史交易日期。
+- `watchlist_member.added_at` 记录每只股票加入每个分组的服务端时间（Unix 秒，含小数），与成员关系同一事务保存。保留勾选或修改其他分组不会重置时间；移除后重新加入则记录重新加入的时间。
+- SQLite 和 Redis/API 快照均提供 `stocks[code].groupAddedAt`，键为分组 ID 字符串、值为加入时间。例如 `{"1": 1793062800.123}`。展示时按 `Asia/Shanghai` 转换。旧库自动增加字段，无法还原的历史加入时间保留 `null`，不以迁移时间冒充。
 
 网页采用自己的 `TRADING_WATCHLIST_DB` 可选环境变量传入替代路径，默认仍为正式 offline 文件。
 生产数据库和凭据均不应提交 Git。新机器需要更新本模块及 TradingAlertSystem 的 watchlists.js / server.py。

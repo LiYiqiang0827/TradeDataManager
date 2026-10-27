@@ -34,11 +34,26 @@ class WatchlistStore:
                 CREATE TABLE IF NOT EXISTS watchlist_meta(id INTEGER PRIMARY KEY CHECK(id=1),generation TEXT NOT NULL,revision INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS watchlist_group(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE,created_at REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS watchlist_stock(code TEXT PRIMARY KEY,name TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 0,updated_at REAL NOT NULL);
-                CREATE TABLE IF NOT EXISTS watchlist_member(code TEXT NOT NULL REFERENCES watchlist_stock(code),group_id INTEGER NOT NULL REFERENCES watchlist_group(id) ON DELETE CASCADE,PRIMARY KEY(code,group_id));
+                CREATE TABLE IF NOT EXISTS watchlist_member(code TEXT NOT NULL REFERENCES watchlist_stock(code),group_id INTEGER NOT NULL REFERENCES watchlist_group(id) ON DELETE CASCADE,added_at REAL,PRIMARY KEY(code,group_id));
                 CREATE INDEX IF NOT EXISTS watchlist_member_group ON watchlist_member(group_id,code);
             ''')
-            conn.execute('INSERT OR IGNORE INTO watchlist_meta VALUES (1,?,0)',(uuid.uuid4().hex,))
-            conn.commit()
+            try:
+                conn.execute('BEGIN IMMEDIATE')
+                conn.execute('INSERT OR IGNORE INTO watchlist_meta VALUES (1,?,0)',(uuid.uuid4().hex,))
+                columns={row[1] for row in conn.execute('PRAGMA table_info(watchlist_member)')}
+                changed='added_at' not in columns
+                if changed:
+                    # Old memberships have no known join time; do not invent one.
+                    conn.execute('ALTER TABLE watchlist_member ADD COLUMN added_at REAL')
+                if not conn.execute('SELECT 1 FROM watchlist_group LIMIT 1').fetchone():
+                    conn.execute('INSERT INTO watchlist_group(name,created_at) VALUES (?,?)',('默认分组',time.time()))
+                    changed=True
+                if changed:conn.execute('UPDATE watchlist_meta SET revision=revision+1 WHERE id=1')
+                conn.commit()
+            except BaseException:
+                conn.rollback();raise
+        # Do not serve a Redis snapshot from before the schema/default migration.
+        if changed:self._dirty=True
 
     def _connect(self):
         conn=sqlite3.connect(self.path,timeout=5)
@@ -57,8 +72,10 @@ class WatchlistStore:
     def _snapshot(conn):
         generation,revision=conn.execute('SELECT generation,revision FROM watchlist_meta WHERE id=1').fetchone()
         groups=[{'id':gid,'name':name,'count':count} for gid,name,count in conn.execute('SELECT g.id,g.name,count(m.code) FROM watchlist_group g LEFT JOIN watchlist_member m ON m.group_id=g.id GROUP BY g.id ORDER BY g.id')]
-        stocks={code:{'name':name,'version':version,'groupIds':[]} for code,name,version in conn.execute('SELECT code,name,version FROM watchlist_stock ORDER BY code')}
-        for code,gid in conn.execute('SELECT code,group_id FROM watchlist_member ORDER BY code,group_id'):stocks[code]['groupIds'].append(gid)
+        stocks={code:{'name':name,'version':version,'groupIds':[],'groupAddedAt':{}} for code,name,version in conn.execute('SELECT code,name,version FROM watchlist_stock ORDER BY code')}
+        for code,gid,added_at in conn.execute('SELECT code,group_id,added_at FROM watchlist_member ORDER BY code,group_id'):
+            stocks[code]['groupIds'].append(gid)
+            stocks[code]['groupAddedAt'][str(gid)]=added_at
         return {'schemaVersion':1,'generation':generation,'revision':revision,'groups':groups,'stocks':stocks}
 
     def _publish(self,payload):
@@ -114,7 +131,7 @@ class WatchlistStore:
                 else:gid=conn.execute('INSERT INTO watchlist_group(name,created_at) VALUES (?,?)',(name,time.time())).lastrowid
                 if stock is not None:
                     conn.execute('INSERT OR IGNORE INTO watchlist_stock VALUES (?,?,0,?)',(code,stock_name,time.time()))
-                    inserted=conn.execute('INSERT OR IGNORE INTO watchlist_member VALUES (?,?)',(code,gid)).rowcount
+                    inserted=conn.execute('INSERT OR IGNORE INTO watchlist_member(code,group_id,added_at) VALUES (?,?,?)',(code,gid,time.time())).rowcount
                     if inserted:
                         conn.execute('UPDATE watchlist_stock SET name=?,version=version+1,updated_at=? WHERE code=?',(stock_name,time.time(),code))
                         changed=True
@@ -143,8 +160,10 @@ class WatchlistStore:
                 previous=[gid for gid, in conn.execute('SELECT group_id FROM watchlist_member WHERE code=? ORDER BY group_id',(code,))]
                 if ids!=previous:
                     conn.execute('INSERT OR IGNORE INTO watchlist_stock VALUES (?,?,0,?)',(code,name,time.time()))
-                    conn.execute('DELETE FROM watchlist_member WHERE code=?',(code,))
-                    conn.executemany('INSERT INTO watchlist_member VALUES (?,?)',[(code,gid) for gid in ids])
+                    # Only change the membership delta, preserving retained join times.
+                    conn.executemany('DELETE FROM watchlist_member WHERE code=? AND group_id=?',[(code,gid) for gid in previous if gid not in ids])
+                    added_at=time.time()
+                    conn.executemany('INSERT INTO watchlist_member(code,group_id,added_at) VALUES (?,?,?)',[(code,gid,added_at) for gid in ids if gid not in previous])
                     conn.execute('UPDATE watchlist_stock SET name=?,version=version+1,updated_at=? WHERE code=?',(name,time.time(),code))
                     conn.execute('UPDATE watchlist_meta SET revision=revision+1 WHERE id=1')
                 payload=self._snapshot(conn)
