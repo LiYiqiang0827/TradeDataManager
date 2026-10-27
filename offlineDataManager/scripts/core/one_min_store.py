@@ -29,6 +29,7 @@ except ImportError as exc:  # pragma: no cover - environment error is explicit
     raise ImportError("oneMin存储需要 pyarrow，请先安装项目依赖") from exc
 
 from config.settings import ONE_MIN_CATALOG_PATH, ONE_MIN_PARQUET_ROOT
+from core.minute_control import ensure_minute_control, record_minute_update
 
 
 SCHEMA_VERSION = "one_min_ohlc.v3_240bars"
@@ -133,6 +134,7 @@ def _open_catalog(path: Optional[Union[str, Path]] = None):
         )
         """
     )
+    ensure_minute_control(conn, "one_minute")
     return conn
 
 
@@ -361,18 +363,25 @@ def _catalog_record_import(
 ) -> None:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     with _open_catalog(catalog_path) as conn:
-        conn.execute(
-            """
-            UPDATE one_min_ingest_catalog SET
-                parquet_path=?, parquet_size=?, schema_version=?, rows=?,
-                stock_count=?, bars_per_stock_min=?, bars_per_stock_max=?,
-                status='imported', imported_at=?, last_checked_at=?, error=NULL
-            WHERE trade_date=?
-            """,
-            [manifest["target_file"], manifest["target_size"], manifest["schema_version"],
-             manifest["rows"], manifest["stock_count"], manifest["bars_per_stock_min"],
-             manifest["bars_per_stock_max"], now, now, manifest["trade_date"]],
-        )
+        conn.execute("BEGIN")
+        try:
+            conn.execute(
+                """
+                UPDATE one_min_ingest_catalog SET
+                    parquet_path=?, parquet_size=?, schema_version=?, rows=?,
+                    stock_count=?, bars_per_stock_min=?, bars_per_stock_max=?,
+                    status='imported', imported_at=?, last_checked_at=?, error=NULL
+                WHERE trade_date=?
+                """,
+                [manifest["target_file"], manifest["target_size"], manifest["schema_version"],
+                 manifest["rows"], manifest["stock_count"], manifest["bars_per_stock_min"],
+                 manifest["bars_per_stock_max"], now, now, manifest["trade_date"]],
+            )
+            record_minute_update(conn, "one_minute", manifest["trade_date"])
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
 
 
 def _catalog_record_failure(

@@ -139,3 +139,22 @@ vol, amount, adj_factor`。所有市场统一只保留09:31至11:30、13:01至15
 `empty` 和 `downloaded` 都参与断点覆盖判断；最终逐日发布仍核验实际日线成员及每股 240 根。
 10 月 26 日曾被 000016.SZ、601059.SH、601198.SH 三只停牌股卡住，
 本次续传正式发布 5,570 股、1,336,800 根，再次运行无需重复下载。
+
+
+## 正式数据更新控制表（2026-10-27）
+
+正式库增加 `tbl_one_minute_ctrl(key, max_date, updated_at)`，`key='one_min_bars'`。
+`max_date` 是已成功发布/落库数据的最大交易日（YYYYMMDD），并不承诺该日全市场完整；
+`updated_at` 为成功写入时间，采用带 UTC 时区的 ISO 格式，页面转换为北京时间。
+每天的增量服务复用存储层，在正式数据和目录写入事务提交时更新控制表；失败、空返回、
+仅更新下载覆盖范围以及一分钟 staging 都不推进正式数据断点。回补旧日期不会倒退 max_date。
+
+为已有正式库初始化控制表（只读取已发布目录/每日写入清单，不扫描分钟事实表）：
+
+```bash
+cd ~/TradingDataManager/offlineDataManager/scripts
+../../.venv/bin/python -m core.minute_control
+```
+
+也可使用 `--one-minute /path/catalog.duckdb --fifteen-minute /path/db_fifteenMinute.db`
+显式指定两份正式库。重复执行保持已有控制记录，不触发下载。

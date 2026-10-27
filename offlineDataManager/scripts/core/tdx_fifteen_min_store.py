@@ -16,6 +16,7 @@ import duckdb
 import pandas as pd
 
 from config.settings import FIFTEEN_MIN_DB_PATH
+from core.minute_control import ensure_minute_control, record_minute_update, touch_minute_update
 
 
 SCHEMA_VERSION = "tdx_fifteen_min_duckdb.v2"
@@ -116,6 +117,7 @@ def ensure_fifteen_min_schema(
                 updated_at TIMESTAMP NOT NULL
             )
         """)
+        ensure_minute_control(conn, "fifteen_minute")
         if previous_version == "tdx_fifteen_min_duckdb.v1":
             # v1在数千万行事实表上维护主键ART索引，历史回补越写越慢。v2依靠
             # 逐股票逐日先删后写保证唯一，完成后再物理排序并建查询索引。
@@ -326,6 +328,7 @@ def write_fifteen_min_batch(
                     status=excluded.status, source_host=excluded.source_host,
                     updated_at=excluded.updated_at, error=NULL
             """)
+            record_minute_update(conn, "fifteen_minute", int(frame["trade_date"].max()))
             conn.execute("COMMIT")
         except Exception:
             conn.execute("ROLLBACK")
@@ -416,6 +419,7 @@ def repair_fifteen_min_adj_factors(
     with context as conn:
         conn.register("repair_fifteen_factors", frame)
         try:
+            conn.execute("BEGIN")
             updated = conn.execute("""
                 UPDATE fifteen_min_bars AS b SET adj_factor=f.adj_factor
                 FROM repair_fifteen_factors AS f
@@ -423,7 +427,13 @@ def repair_fifteen_min_adj_factors(
                   AND b.ts_code=f.ts_code AND b.trade_date=f.trade_date
                   AND b.adj_factor IS DISTINCT FROM f.adj_factor
             """, [int(frame.trade_date.min()), int(frame.trade_date.max())]).fetchone()[0]
+            if updated:
+                touch_minute_update(conn, "fifteen_minute")
+            conn.execute("COMMIT")
             result["updated_rows"] = int(updated)
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
         finally:
             conn.unregister("repair_fifteen_factors")
     return result

@@ -15,6 +15,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from config.settings import ONE_MIN_CATALOG_PATH, ONE_MIN_PARQUET_ROOT
+from core.minute_control import record_minute_update
 from core.one_min_store import (
     SCHEMA_VERSION, STANDARD_COLUMNS, _manifest_path, _open_catalog,
     _partition_dir, list_one_min_dates, normalize_trade_date,
@@ -94,7 +95,17 @@ def remove_one_min_partition(
     manifest.unlink(missing_ok=True)
     catalog = ensure_tdx_one_min_catalog(catalog_path)
     with duckdb.connect(str(catalog)) as conn:
-        conn.execute("DELETE FROM one_min_ingest_catalog WHERE trade_date=?", [day])
+        conn.execute("BEGIN")
+        try:
+            conn.execute("DELETE FROM one_min_ingest_catalog WHERE trade_date=?", [day])
+            # Removing an invalid official day can legitimately lower the checkpoint.
+            conn.execute("DELETE FROM tbl_one_minute_ctrl WHERE key='one_min_bars'")
+            from core.minute_control import ensure_minute_control
+            ensure_minute_control(conn, "one_minute")
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
     return existed
 
 
@@ -325,32 +336,39 @@ def _record_tdx_partition(
     now = _utc_now()
     uri = f"tdx://security-bars/1min/{day}"
     with duckdb.connect(str(catalog)) as conn:
-        conn.execute("""
-            INSERT INTO one_min_ingest_catalog (
-                trade_date, source_path, source_size, source_mtime_ns,
-                source_present, parquet_path, parquet_size, schema_version,
-                rows, stock_count, bars_per_stock_min, bars_per_stock_max,
-                status, discovered_at, last_checked_at, imported_at, error,
-                source_duplicate_count, source_candidates, data_source, source_host
-            ) VALUES (?, ?, 0, 0, TRUE, ?, ?, ?, ?, ?, ?, ?, 'imported', ?, ?, ?, NULL,
-                      1, ?, ?, ?)
-            ON CONFLICT(trade_date) DO UPDATE SET
-                source_path=excluded.source_path, source_size=0, source_mtime_ns=0,
-                source_present=TRUE, parquet_path=excluded.parquet_path,
-                parquet_size=excluded.parquet_size, schema_version=excluded.schema_version,
-                rows=excluded.rows, stock_count=excluded.stock_count,
-                bars_per_stock_min=excluded.bars_per_stock_min,
-                bars_per_stock_max=excluded.bars_per_stock_max,
-                status='imported', last_checked_at=excluded.last_checked_at,
-                imported_at=excluded.imported_at, error=NULL,
-                source_duplicate_count=1, source_candidates=excluded.source_candidates,
-                data_source=excluded.data_source, source_host=excluded.source_host
-        """, [
-            day, uri, str(target), target.stat().st_size, SCHEMA_VERSION,
-            stats["rows"], stats["stock_count"], stats["bars_per_stock_min"],
-            stats["bars_per_stock_max"], now, now, now,
-                json.dumps([uri]), data_source, source_host,
-        ])
+        conn.execute("BEGIN")
+        try:
+            conn.execute("""
+                INSERT INTO one_min_ingest_catalog (
+                    trade_date, source_path, source_size, source_mtime_ns,
+                    source_present, parquet_path, parquet_size, schema_version,
+                    rows, stock_count, bars_per_stock_min, bars_per_stock_max,
+                    status, discovered_at, last_checked_at, imported_at, error,
+                    source_duplicate_count, source_candidates, data_source, source_host
+                ) VALUES (?, ?, 0, 0, TRUE, ?, ?, ?, ?, ?, ?, ?, 'imported', ?, ?, ?, NULL,
+                          1, ?, ?, ?)
+                ON CONFLICT(trade_date) DO UPDATE SET
+                    source_path=excluded.source_path, source_size=0, source_mtime_ns=0,
+                    source_present=TRUE, parquet_path=excluded.parquet_path,
+                    parquet_size=excluded.parquet_size, schema_version=excluded.schema_version,
+                    rows=excluded.rows, stock_count=excluded.stock_count,
+                    bars_per_stock_min=excluded.bars_per_stock_min,
+                    bars_per_stock_max=excluded.bars_per_stock_max,
+                    status='imported', last_checked_at=excluded.last_checked_at,
+                    imported_at=excluded.imported_at, error=NULL,
+                    source_duplicate_count=1, source_candidates=excluded.source_candidates,
+                    data_source=excluded.data_source, source_host=excluded.source_host
+            """, [
+                day, uri, str(target), target.stat().st_size, SCHEMA_VERSION,
+                stats["rows"], stats["stock_count"], stats["bars_per_stock_min"],
+                stats["bars_per_stock_max"], now, now, now,
+                    json.dumps([uri]), data_source, source_host,
+            ])
+            record_minute_update(conn, "one_minute", day)
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
 
 
 def _stock_day_lineage(
@@ -771,14 +789,21 @@ def normalize_existing_one_min_partitions(
         )
         temporary_manifest.replace(manifest_path)
         with _open_catalog(catalog_path) as conn:
-            conn.execute("""
-                UPDATE one_min_ingest_catalog SET parquet_size=?, schema_version=?, rows=?,
-                    stock_count=?, bars_per_stock_min=?, bars_per_stock_max=?,
-                    status='imported', last_checked_at=?, error=NULL
-                WHERE trade_date=?
-            """, [
-                target.stat().st_size, SCHEMA_VERSION, stats["rows"], stats["stock_count"],
-                stats["bars_per_stock_min"], stats["bars_per_stock_max"], _utc_now(), day,
-            ])
+            conn.execute("BEGIN")
+            try:
+                conn.execute("""
+                    UPDATE one_min_ingest_catalog SET parquet_size=?, schema_version=?, rows=?,
+                        stock_count=?, bars_per_stock_min=?, bars_per_stock_max=?,
+                        status='imported', last_checked_at=?, error=NULL
+                    WHERE trade_date=?
+                """, [
+                    target.stat().st_size, SCHEMA_VERSION, stats["rows"], stats["stock_count"],
+                    stats["bars_per_stock_min"], stats["bars_per_stock_max"], _utc_now(), day,
+                ])
+                record_minute_update(conn, "one_minute", day)
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
         results.append({"trade_date": day, "old_rows": old_rows, **stats})
     return results
