@@ -33,6 +33,7 @@ if str(_CORE_SVC.parent) not in _sys.path:
 
 import argparse
 import logging
+import re
 import sys
 import time
 from datetime import datetime
@@ -56,6 +57,21 @@ def is_trading_window(now: datetime | None = None) -> bool:
         return False
     hh, mm = now.hour, now.minute
     return (9, 30) <= (hh, mm) <= (15, 0)
+
+
+def snapshot_watchlist(redis_client):
+    """Union the scheduled pool with short-lived, page-sized dashboard demand."""
+    codes = set(redis_client.get_watchlist())
+    now = time.time()
+    key = 'online:dashboard:snapshot-demand:'+datetime.now().strftime('%Y%m%d')
+    pipe = redis_client.r.pipeline(transaction=False)
+    pipe.zremrangebyscore(key, '-inf', now)
+    pipe.zrangebyscore(key, now, '+inf')
+    _, requested = pipe.execute()
+    for code in requested:
+        code = code.decode() if isinstance(code, bytes) else code
+        if re.fullmatch(r'\d{6}\.(SH|SZ|BJ)', code):codes.add(code)
+    return sorted(codes)
 
 
 def run_realtime_loop(
@@ -82,7 +98,7 @@ def run_realtime_loop(
 
         started = time.monotonic()
         try:
-            watchlist = redis_client.get_watchlist()
+            watchlist = snapshot_watchlist(redis_client)
             if not watchlist:
                 log.debug("watchlist 为空, 跳过本轮")
                 time.sleep(interval_sec)
@@ -142,7 +158,7 @@ def main() -> int:
     if args.once:
         log.info("单轮模式:强制跑 1 轮")
         try:
-            watchlist = r.get_watchlist()
+            watchlist = snapshot_watchlist(r)
             if watchlist:
                 quotes = fetch_snapshots(watchlist)
                 now_dt = datetime.now()
